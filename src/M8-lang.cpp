@@ -16,137 +16,107 @@ struct VariableInfo
     size_t scopeId;
 };
 
-static const std::unordered_map<string, TokenType> keywordMap =
+static bool matchUTF(size_t i, const char* lit, const string& source)
 {
-    {"var", TokenType::Var},
-    {"mut", TokenType::Mut},
-    {"return", TokenType::Return},
-    {"if", TokenType::If},
-    {"else", TokenType::Else},
-    {"i32", TokenType::I32},
-    {"i64", TokenType::I64},
-    {"bool", TokenType::Bool},
-    {"true", TokenType::True},
-    {"false", TokenType::False}
+    size_t len = std::char_traits<char>::length(lit);
+    return i + len <= source.size() && source.compare(i, len, lit) == 0;
 };
 
-TokenType classifyIdentifier(const string& ident)
+static std::vector<Token> lexSource(const string& source)
 {
-    auto it = keywordMap.find(ident);
-    return (it != keywordMap.end()) ? it->second : TokenType::Identifier;
-}
-
-std::vector<Token> lexSource(const string& source)
-{
-    std::vector<Token> out;
     enum class State { Start, Identifier, Number };
+
+    std::vector<Token> out;
     State state = State::Start;
-    string buffer;
+    size_t i = 0;
+    size_t tokenStart = 0;
 
-    for (size_t i = 0; i <= source.size(); )
+    auto emit_identifier = [&](size_t begin, size_t end) {
+        if (end > begin)
+            out.push_back({ source.substr(begin, end - begin), TokenType::Identifier });
+    };
+
+    auto emit_number = [&](size_t begin, size_t end) {
+        if (end > begin)
+            out.push_back({ source.substr(begin, end - begin), TokenType::Number });
+    };
+
+    while (i < source.size())
     {
-        char c = (i < source.size()) ? source[i] : '\0';
-        bool atEnd = (i == source.size());
-        TokenType kind;
-
+        unsigned char uc = static_cast<unsigned char>(source[i]);
         switch (state)
         {
         case State::Start:
-            if (atEnd)
-            {
-                ++i;
-                continue;
-            }
-            if (c == '\n')
-            {
-                out.push_back(Token{ "\n", TokenType::Newline });
-                ++i;
-                continue;
-            }
-            if (std::isspace(static_cast<unsigned char>(c)))
-            {
-                ++i;
-                continue;
-            }
-            if (c == '/' && i + 1 < source.size() && source[i + 1] == '/')
-            {
-                i += 2;
-                while (i < source.size() && source[i] != '\n') ++i;
-                continue;
-            }
-            if (c == '=' && i + 1 < source.size() && source[i + 1] == '=')
-            {
-                out.push_back(Token{ "==", TokenType::Equals });
-                i += 2;
-                continue;
-            }
-            if (c == '!' && i + 1 < source.size() && source[i + 1] == '=')
-            {
-                out.push_back(Token{ "!=", TokenType::NotEqual });
-                i += 2;
-                continue;
-            }
-            if (c == '!')
-            {
-                out.push_back(Token{ "!", TokenType::Not });
-                ++i;
-                continue;
-            }
-            if (std::isalpha(static_cast<unsigned char>(c)) || c == '_')
-            {
-                buffer.assign(1, c);
+        {
+            if (std::isspace(uc)) { ++i; break; }
+
+            if (matchUTF(i, "᛬᛬", source)) { out.push_back({ "᛬᛬", TokenType::Equals }); i += 6; break; }
+            if (matchUTF(i, "ᛅ᛬", source)) { out.push_back({ "ᛅ᛬", TokenType::NotEqual }); i += 6; break; }
+            if (matchUTF(i, "᛭᛬", source)) { out.push_back({ "᛭᛬", TokenType::AddAssign }); i += 6; break; }
+            if (matchUTF(i, "ᛧ᛬", source)) { out.push_back({ "ᛧ᛬", TokenType::SubAssign }); i += 6; break; }
+            if (matchUTF(i, "᛫᛬", source)) { out.push_back({ "᛫᛬", TokenType::MulAssign }); i += 6; break; }
+            if (matchUTF(i, "ᛇ᛬", source)) { out.push_back({ "ᛇ᛬", TokenType::DivAssign }); i += 6; break; }
+
+            if (matchUTF(i, "ᛵ", source)) { out.push_back({ "ᛵ", TokenType::StmtSep }); i += 3; break; }
+            if (matchUTF(i, "ᛜ", source)) { out.push_back({ "ᛜ", TokenType::Then }); i += 3; break; }
+            if (matchUTF(i, "᛬", source)) { out.push_back({ "᛬", TokenType::Assign }); i += 3; break; }
+            if (matchUTF(i, "᛭", source)) { out.push_back({ "᛭", TokenType::Add }); i += 3; break; }
+            if (matchUTF(i, "ᛧ", source)) { out.push_back({ "ᛧ", TokenType::Sub }); i += 3; break; }
+            if (matchUTF(i, "᛫", source)) { out.push_back({ "᛫", TokenType::Mul }); i += 3; break; }
+            if (matchUTF(i, "ᛇ", source)) { out.push_back({ "ᛇ", TokenType::Div }); i += 3; break; }
+            if (matchUTF(i, "ᛅ", source)) { out.push_back({ "ᛅ", TokenType::Not }); i += 3; break; }
+            if (matchUTF(i, "ᚮ", source)) { out.push_back({ "ᚮ", TokenType::LParen }); i += 3; break; }
+            if (matchUTF(i, "ᚭ", source)) { out.push_back({ "ᚭ", TokenType::RParen }); i += 3; break; }
+
+            if (matchUTF(i, "ᛗ", source)) { out.push_back({ "ᛗ", TokenType::If }); i += 3; break; }
+            if (matchUTF(i, "ᛎ", source)) { out.push_back({ "ᛎ", TokenType::Else }); i += 3; break; }
+            if (matchUTF(i, "ᚷ", source)) { out.push_back({ "ᚷ", TokenType::Return }); i += 3; break; }
+            if (matchUTF(i, "ᚡ", source)) { out.push_back({ "ᚡ", TokenType::Var }); i += 3; break; }
+            if (matchUTF(i, "ᛍ", source)) { out.push_back({ "ᛍ", TokenType::Const }); i += 3; break; }
+            if (matchUTF(i, "ᛉ", source)) { out.push_back({ "ᛉ", TokenType::True }); i += 3; break; }
+            if (matchUTF(i, "ᛣ", source)) { out.push_back({ "ᛣ", TokenType::False }); i += 3; break; }
+
+            if (std::isalpha(uc)) {
                 state = State::Identifier;
+                tokenStart = i;
                 ++i;
-                continue;
+                break;
             }
-            if (std::isdigit(static_cast<unsigned char>(c)))
-            {
-                buffer.assign(1, c);
+
+            if (std::isdigit(uc)) {
                 state = State::Number;
+                tokenStart = i;
                 ++i;
-                continue;
+                break;
             }
 
-            kind = TokenType::Newline;
-            switch (c)
-            {
-            case '{': kind = TokenType::BlockStart; break;
-            case '}': kind = TokenType::BlockEnd; break;
-            case '=': kind = TokenType::Assign; break;
-            case '+': kind = TokenType::Add; break;
-            case '-': kind = TokenType::Sub; break;
-            case '*': kind = TokenType::Mul; break;
-            default: ++i; continue;
-            }
-            out.push_back(Token{ string(1, c), kind });
+            std::cerr << "Lex warning: skipping unknown character near byte " << i << std::endl;
             ++i;
-            continue;
-
+            break;
+        }
         case State::Identifier:
-            if (!atEnd && (std::isalnum(static_cast<unsigned char>(c)) || c == '_'))
-            {
-                buffer.push_back(c);
+        {
+            while (i < source.size() && std::isalnum(static_cast<unsigned char>(source[i])))
                 ++i;
-                continue;
-            }
-            out.push_back(Token{ buffer, classifyIdentifier(buffer) });
-            buffer.clear();
+            emit_identifier(tokenStart, i);
             state = State::Start;
-            continue;
-
+            break;
+        }
         case State::Number:
-            if (!atEnd && std::isdigit(static_cast<unsigned char>(c)))
-            {
-                buffer.push_back(c);
+        {
+            while (i < source.size() && std::isdigit(static_cast<unsigned char>(source[i])))
                 ++i;
-                continue;
-            }
-            out.push_back(Token{ buffer, TokenType::Number });
-            buffer.clear();
+            if (matchUTF(i, "ᛰ", source) || matchUTF(i, "ᛯ", source))
+                i += 3;
+            emit_number(tokenStart, i);
             state = State::Start;
-            continue;
+            break;
+        }
         }
     }
+
+    if (state == State::Identifier) emit_identifier(tokenStart, i);
+    else if (state == State::Number) emit_number(tokenStart, i);
 
     out.push_back(Token{ "", TokenType::EndOfFile });
     return out;
@@ -215,9 +185,6 @@ public:
 
         program.accept(*this);
 
-        if (!m_returnSeen)
-            addWarning("Missing return statement; defaulting to 'return 0'.");
-
         return m_errors.empty();
     }
 
@@ -262,16 +229,21 @@ public:
         {
             init->accept(*this);
             ValueType initType = init->type();
-            if (!isAssignable(node.declaredType(), initType))
+            if (node.declaredType() != ValueType::Invalid)
             {
-                addError("Cannot initialize '" + name + "' of type " + typeToString(node.declaredType()) +
-                    " with value of type " + typeToString(initType));
+                if (!isAssignable(node.declaredType(), initType))
+                {
+                    addError("Cannot initialize '" + name + "' of type " + typeToString(node.declaredType()) + " with value of type " + typeToString(initType));
+                }
             }
         }
 
         SymbolID symbolId = m_nextSymbolId++;
         scopeMap.emplace(name, symbolId);
-        m_symbols.emplace(symbolId, VariableInfo{ node.declaredType(), node.isMutable(), name, scope });
+        ValueType varType = node.declaredType();
+        if (varType == ValueType::Invalid && node.initializer())
+            varType = node.initializer()->type();
+        m_symbols.emplace(symbolId, VariableInfo{varType, node.isMutable(), name, scope});
         node.setSymbolId(symbolId);
     }
 
@@ -299,8 +271,7 @@ public:
                 ValueType valueType = value->type();
                 if (!isAssignable(info.type, valueType))
                 {
-                    addError("Cannot assign value of type " + typeToString(valueType) +
-                        " to variable '" + node.identifier() + "' of type " + typeToString(info.type));
+                    addError("Cannot assign value of type " + typeToString(valueType) + " to variable '" + node.identifier() + "' of type " + typeToString(info.type));
                 }
             }
         }
@@ -326,7 +297,6 @@ public:
         m_returnSeen = true;
         if (!node.expr())
         {
-            addError("Return statement requires an expression");
             return;
         }
 
@@ -359,6 +329,7 @@ public:
         case BinaryOpNode::Operator::Add:
         case BinaryOpNode::Operator::Sub:
         case BinaryOpNode::Operator::Mul:
+        case BinaryOpNode::Operator::Div:
         {
             if (!isNumeric(leftType) || !isNumeric(rightType))
             {
@@ -501,8 +472,7 @@ struct CodegenVariable
 class CodeGenerator : public ASTVisitor
 {
 public:
-    CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, VariableInfo>& symbols)
-        : m_ctx(ctx)
+    CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, VariableInfo>& symbols) : m_ctx(ctx)
     {
         for (const auto& [id, info] : symbols)
         {
@@ -519,7 +489,7 @@ public:
         m_currentBlockTerminated = false;
         program.accept(*this);
         if (!m_currentBlockTerminated)
-            emitReturn({ "0", ValueType::I32 });
+            emitReturn({"0", ValueType::I32});
     }
 
     void visitProgram(const ProgramNode& node) override
@@ -547,7 +517,7 @@ public:
         CodegenVariable& var = getVariable(symbolId);
         ensureAllocated(var);
 
-        CodegenValue value{ zeroLiteral(var.type), var.type };
+        CodegenValue value{zeroLiteral(var.type), var.type};
         if (const ExprNode* init = node.initializer())
         {
             init->accept(*this);
@@ -616,7 +586,10 @@ public:
     void visitReturn(const ReturnNode& node) override
     {
         if (!node.expr())
+        {
+            emitReturn({"0", ValueType::I32});
             return;
+        }
 
         node.expr()->accept(*this);
         CodegenValue value = popValue();
@@ -638,17 +611,25 @@ public:
         case BinaryOpNode::Operator::Add:
         case BinaryOpNode::Operator::Sub:
         case BinaryOpNode::Operator::Mul:
+        case BinaryOpNode::Operator::Div:
         {
             ValueType targetType = node.type();
             leftValue = ensureType(std::move(leftValue), targetType);
             rightValue = ensureType(std::move(rightValue), targetType);
 
-            const char* opInstr = (node.op() == BinaryOpNode::Operator::Add) ? "add" :
-                (node.op() == BinaryOpNode::Operator::Sub) ? "sub" : "mul";
+            const char* opInstr;
+            if (node.op() == BinaryOpNode::Operator::Add)
+                opInstr = "add";
+            else if (node.op() == BinaryOpNode::Operator::Sub)
+                opInstr = "sub";
+            else if (node.op() == BinaryOpNode::Operator::Mul)
+                opInstr = "mul";
+            else if (node.op() == BinaryOpNode::Operator::Div)
+                opInstr = "sdiv";
+
             string tmp = nextTemp();
-            emitInstruction(tmp + " = " + opInstr + " " + llvmType(targetType) + " " +
-                leftValue.operand + ", " + rightValue.operand);
-            pushValue({ tmp, targetType });
+            emitInstruction(tmp + " = " + opInstr + " " + llvmType(targetType) + " " + leftValue.operand + ", " + rightValue.operand);
+            pushValue({tmp, targetType});
             return;
         }
         case BinaryOpNode::Operator::Equal:
@@ -660,14 +641,13 @@ public:
 
             const char* cmp = (node.op() == BinaryOpNode::Operator::Equal) ? "icmp eq" : "icmp ne";
             string tmp = nextTemp();
-            emitInstruction(tmp + " = " + cmp + " " + llvmType(operandType) + " " +
-                leftValue.operand + ", " + rightValue.operand);
-            pushValue({ tmp, ValueType::Bool });
+            emitInstruction(tmp + " = " + cmp + " " + llvmType(operandType) + " " + leftValue.operand + ", " + rightValue.operand);
+            pushValue({tmp, ValueType::Bool});
             return;
         }
         }
 
-        pushValue({ zeroLiteral(ValueType::Invalid), ValueType::Invalid });
+        pushValue({zeroLiteral(ValueType::Invalid), ValueType::Invalid});
     }
 
     void visitUnaryOp(const UnaryOpNode& node) override
@@ -678,8 +658,8 @@ public:
         CodegenValue value = popValue();
         value = ensureType(std::move(value), ValueType::Bool);
         string tmp = nextTemp();
-        emitInstruction(tmp + " = xor i1 " + value.operand + ", 1");
-        pushValue({ tmp, ValueType::Bool });
+        emitInstruction(tmp + " = xor i1 " + value.operand + ",1");
+        pushValue({tmp, ValueType::Bool});
     }
 
     void visitID(const IDNode& node) override
@@ -687,19 +667,18 @@ public:
         SymbolID symbolId = node.symbolId();
         if (symbolId == InvalidSymbolID)
         {
-            pushValue({ "0", ValueType::Invalid });
+            pushValue({"0", ValueType::Invalid});
             return;
         }
 
         CodegenVariable& var = getVariable(symbolId);
         ensureAllocated(var);
         if (!var.initialized)
-            storeValue(var, { zeroLiteral(var.type), var.type });
+            storeValue(var, {zeroLiteral(var.type), var.type});
 
         string tmp = nextTemp();
-        emitInstruction(tmp + " = load " + llvmType(var.type) + ", " +
-            llvmType(var.type) + "* " + var.pointer);
-        pushValue({ tmp, var.type });
+        emitInstruction(tmp + " = load " + llvmType(var.type) + ", " + llvmType(var.type) + "* " + var.pointer);
+        pushValue({tmp, var.type});
     }
 
     void visitNumber(const NumberNode& node) override
@@ -721,7 +700,7 @@ public:
 
     void visitBoolLiteral(const BoolLiteralNode& node) override
     {
-        pushValue({ node.value() ? "1" : "0", ValueType::Bool });
+        pushValue({node.value() ? "1" : "0", ValueType::Bool});
     }
 
 private:
@@ -766,7 +745,7 @@ private:
 
     void emitInstruction(const string& text)
     {
-        m_ctx.ir << "  " << text << "\n";
+        m_ctx.ir << " " << text << "\n";
     }
 
     void pushValue(CodegenValue value)
@@ -777,7 +756,7 @@ private:
     CodegenValue popValue()
     {
         if (m_stack.empty())
-            return { "0", ValueType::Invalid };
+            return {"0", ValueType::Invalid};
         CodegenValue value = std::move(m_stack.back());
         m_stack.pop_back();
         return value;
@@ -806,7 +785,7 @@ private:
     CodegenValue ensureType(CodegenValue value, ValueType target)
     {
         if (target == ValueType::Invalid || value.type == ValueType::Invalid)
-            return { value.operand, ValueType::Invalid };
+            return {value.operand, ValueType::Invalid};
 
         if (value.type == target)
             return value;
@@ -815,21 +794,21 @@ private:
         {
             string tmp = nextTemp();
             emitInstruction(tmp + " = sext i32 " + value.operand + " to i64");
-            return { tmp, ValueType::I64 };
+            return {tmp, ValueType::I64};
         }
 
         if (target == ValueType::I32 && value.type == ValueType::I64)
         {
             string tmp = nextTemp();
             emitInstruction(tmp + " = trunc i64 " + value.operand + " to i32");
-            return { tmp, ValueType::I32 };
+            return {tmp, ValueType::I32};
         }
 
         if (target == ValueType::I32 && value.type == ValueType::Bool)
         {
             string tmp = nextTemp();
             emitInstruction(tmp + " = zext i1 " + value.operand + " to i32");
-            return { tmp, ValueType::I32 };
+            return {tmp, ValueType::I32};
         }
 
         if (target == ValueType::I64 && value.type == ValueType::Bool)
@@ -839,7 +818,7 @@ private:
         }
 
         if (target == ValueType::Bool && value.type != ValueType::Bool)
-            return { value.operand, ValueType::Invalid };
+            return {value.operand, ValueType::Invalid};
 
         return value;
     }
@@ -847,8 +826,7 @@ private:
     void storeValue(CodegenVariable& var, const CodegenValue& value)
     {
         ensureAllocated(var);
-        emitInstruction("store " + llvmType(var.type) + " " + value.operand + ", " +
-            llvmType(var.type) + "* " + var.pointer);
+        emitInstruction("store " + llvmType(var.type) + " " + value.operand + ", " + llvmType(var.type) + "* " + var.pointer);
         var.initialized = true;
     }
 

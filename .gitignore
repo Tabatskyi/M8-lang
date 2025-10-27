@@ -431,3 +431,7 @@ FodyWeavers.xsd
 *CMakeCache.txt
 *Makefile
 *.cmake
+*.ll
+*M8-lang
+/.vscode
+*.o

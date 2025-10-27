@@ -9,25 +9,56 @@ enum class TokenType
     Newline,
     Identifier,
     Number,
-    Var,
-    Mut,
-    Return,
-    If,
-    Else,
-    I32,
-    I64,
-    Bool,
-    True,
-    False,
-    BlockStart,
-    BlockEnd,
-    Assign,
-    Equals,
-    NotEqual,
-    Not,
-    Add,
-    Sub,
-    Mul
+    StmtSep, // 'ᛵ'
+
+    // Keywords / statements
+    Var, // 'ᚡ'
+    Const, // 'ᛍ'
+    Return, // 'ᚷ'
+    If, // 'ᛗ'
+    Else, // 'ᛎ'
+    Then, // 'ᛜ' 
+
+    // Types 
+    I32, // 'ᛰ'
+    I64, // 'ᛯ'
+    Bool, // 'ᛨ'
+
+    // Literals
+    True, // 'ᛉ'
+    False, // 'ᛣ'
+
+    // Grouping
+    LParen, // 'ᚮ'
+    RParen, // 'ᚭ'
+
+    // Operators
+    Assign, // '᛬'
+    Equals, // '᛬᛬'
+    NotEqual, // 'ᛅ᛬'
+    Not, // unary 'ᛅ'
+    Add, // '᛭'
+    Sub, // 'ᛧ'
+    Mul, // '᛫'
+    Div, // 'ᛇ'
+
+    // not used yet
+    // Logical ops
+    And, // 'ᛤ'
+    Or, // 'ᚢ'
+    Xor, // 'ᛥ'
+
+    // Compound assignment operators
+    AddAssign, // '᛭᛬'
+    SubAssign, // 'ᛧ᛬'
+    MulAssign, // '᛫᛬'
+    DivAssign, // 'ᛇ᛬'
+
+    // Checked ops
+    CheckedAdd, // 'ꑭ᛭'
+    CheckedSub, // 'ꑭᛧ'
+    CheckedMul, // 'ꑭ᛫'
+    CheckedDiv, // 'ꑭᛇ'
 };
 
 struct Token

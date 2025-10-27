@@ -21,16 +21,19 @@ std::unique_ptr<ProgramNode> SyntaxParser::parseProgram()
 {
     ProgramNode::StmtList statements;
 
-    skipNewlines();
+    if (atEnd())
+        return std::make_unique<ProgramNode>(std::move(statements), 0);
 
-    while (!atEnd())
+    auto first = parseStmt();
+    if (!first) return nullptr;
+    statements.push_back(std::move(first));
+
+    while (match(TokenType::StmtSep))
     {
-        auto stmt = parseStmt();
-        if (!stmt)
-            return nullptr;
-
-        statements.push_back(std::move(stmt));
-        skipNewlines();
+        if (atEnd()) break;
+        auto next = parseStmt();
+        if (!next) return nullptr;
+        statements.push_back(std::move(next));
     }
 
     if (!atEnd())
@@ -52,9 +55,8 @@ std::unique_ptr<StmtNode> SyntaxParser::parseStmt()
 
     switch (token->type)
     {
-        case TokenType::I32:
-        case TokenType::I64:
-        case TokenType::Bool:
+        case TokenType::Var:
+        case TokenType::Const:
             return parseDecl();
 
         case TokenType::Identifier:
@@ -74,20 +76,27 @@ std::unique_ptr<StmtNode> SyntaxParser::parseStmt()
 
 std::unique_ptr<ReturnNode> SyntaxParser::parseReturn()
 {
-    if (!expect(TokenType::Return, "Expected 'return'"))
+    if (!expect(TokenType::Return, "Expected return (ᚷ)"))
         return nullptr;
 
     skipNewlines();
-    auto expr = parseExpr();
-    if (!expr)
-        return nullptr;
-
-    return std::make_unique<ReturnNode>(std::move(expr));
+    if (const Token* t = peek())
+    {
+        if (t->type == TokenType::Identifier || t->type == TokenType::Number ||
+            t->type == TokenType::True || t->type == TokenType::False ||
+            t->type == TokenType::LParen || t->type == TokenType::Sub || t->type == TokenType::Not)
+        {
+            auto expr = parseExpr();
+            if (!expr) return nullptr;
+            return std::make_unique<ReturnNode>(std::move(expr));
+        }
+    }
+    return std::make_unique<ReturnNode>(nullptr);
 }
 
 std::unique_ptr<IfNode> SyntaxParser::parseIf()
 {
-    if (!expect(TokenType::If, "Expected 'if'"))
+    if (!expect(TokenType::If, "Expected if (ᛗ)"))
         return nullptr;
 
     skipNewlines();
@@ -96,98 +105,62 @@ std::unique_ptr<IfNode> SyntaxParser::parseIf()
         return nullptr;
 
     skipNewlines();
-    auto thenBlock = parseBlock(allocateScopeId());
-    if (!thenBlock)
+    if (!expect(TokenType::Then, "Expected then separator (ᛜ) after condition"))
         return nullptr;
 
     skipNewlines();
+    auto thenStmt = parseStmt();
+    if (!thenStmt) return nullptr;
+    auto thenBlock = parseBlock(std::move(thenStmt), allocateScopeId());
+
     std::unique_ptr<BlockNode> elseBlock;
     if (match(TokenType::Else))
     {
         skipNewlines();
-        elseBlock = parseBlock(allocateScopeId());
-        if (!elseBlock)
-            return nullptr;
-        skipNewlines();
+        auto elseStmt = parseStmt();
+        if (!elseStmt) return nullptr;
+        elseBlock = parseBlock(std::move(elseStmt), allocateScopeId());
     }
 
     return std::make_unique<IfNode>(std::move(condition), std::move(thenBlock), std::move(elseBlock));
 }
 
-std::unique_ptr<BlockNode> SyntaxParser::parseBlock(size_t scopeId)
+std::unique_ptr<BlockNode> SyntaxParser::parseBlock(std::unique_ptr<StmtNode> stmt, size_t scopeId)
 {
-    if (!expect(TokenType::BlockStart, "Expected '{' to start block"))
-        return nullptr;
-
-    BlockNode::StmtList statements;
     skipNewlines();
+    BlockNode::StmtList list;
+    list.push_back(std::move(stmt));
 
-    while (true)
-    {
-        const Token* token = peek();
-        if (!token)
-        {
-            addError("Unexpected end of input inside block");
-            return nullptr;
-        }
-
-        if (token->type == TokenType::BlockEnd)
-        {
-            eat();
-            break;
-        }
-
-        auto stmt = parseStmt();
-        if (!stmt)
-            return nullptr;
-
-        statements.push_back(std::move(stmt));
-        skipNewlines();
-    }
-
-    return std::make_unique<BlockNode>(std::move(statements), scopeId);
+    return std::make_unique<BlockNode>(std::move(list), scopeId);
 }
 
 std::unique_ptr<DeclNode> SyntaxParser::parseDecl()
 {
-    ValueType type = parseType();
-    if (type == ValueType::Invalid)
-        return nullptr;
-
-    skipNewlines();
-
     bool isMutable = false;
-    while (match(TokenType::Mut))
-    {
+    if (match(TokenType::Var))
         isMutable = true;
-        skipNewlines();
+    else if (!match(TokenType::Const))
+    {
+        addError("Expected variable declaration (ᚡ or ᛍ)");
+        return nullptr;
     }
 
     const Token* identTok = peek();
     if (!identTok || identTok->type != TokenType::Identifier)
     {
-        addError("Expected identifier after type specifier");
+        addError("Expected identifier after declaration keyword");
         return nullptr;
     }
     std::string identifier = identTok->lexeme;
     eat();
 
-    skipNewlines();
+    if (!expect(TokenType::Assign, "Expected assignment colon (᛬) in declaration"))
+        return nullptr;
 
-    std::unique_ptr<ExprNode> initializer;
-    if (match(TokenType::BlockStart))
-    {
-        skipNewlines();
-        initializer = parseExpr();
-        if (!initializer)
-            return nullptr;
+    auto initializer = parseExpr();
+    if (!initializer) return nullptr;
 
-        skipNewlines();
-        if (!expect(TokenType::BlockEnd, "Expected '}' after initializer expression"))
-            return nullptr;
-    }
-
-    return std::make_unique<DeclNode>(type, std::move(identifier), isMutable, std::move(initializer));
+    return std::make_unique<DeclNode>(ValueType::Invalid, std::move(identifier), isMutable, std::move(initializer));
 }
 
 ValueType SyntaxParser::parseType()
@@ -201,21 +174,21 @@ ValueType SyntaxParser::parseType()
 
     switch (token->type)
     {
-        case TokenType::I32:
-            eat();
-            return ValueType::I32;
+    case TokenType::I32:
+        eat();
+        return ValueType::I32;
 
-        case TokenType::I64:
-            eat();
-            return ValueType::I64;
+    case TokenType::I64:
+        eat();
+        return ValueType::I64;
 
-        case TokenType::Bool:
-            eat();
-            return ValueType::Bool;
+    case TokenType::Bool:
+        eat();
+        return ValueType::Bool;
 
-        default:
-            addError("Expected type specifier");
-            return ValueType::Invalid;
+    default:
+        addError("Expected type specifier");
+        return ValueType::Invalid;
     }
 }
 
@@ -231,18 +204,35 @@ std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
     std::string identifier = identTok->lexeme;
     eat();
 
-    skipNewlines();
+    if (match(TokenType::Assign))
+    {
+        auto value = parseExpr();
+        if (!value) return nullptr;
+        return std::make_unique<AssignNode>(std::move(identifier), std::move(value));
+    }
+    else if (match(TokenType::AddAssign) || match(TokenType::SubAssign) || match(TokenType::MulAssign) || match(TokenType::DivAssign))
+    {
+        TokenType opTok = m_tokens[m_index - 1].type;
+        auto rhs = parseExpr();
+        if (!rhs) 
+            return nullptr;
 
-    if (!expect(TokenType::Assign, "Expected '=' in assignment"))
-        return nullptr;
+        std::unique_ptr<ExprNode> leftId = std::make_unique<IDNode>(identifier);
+        BinaryOpNode::Operator bop = BinaryOpNode::Operator::Add;
+        switch (opTok)
+        {
+            case TokenType::AddAssign: bop = BinaryOpNode::Operator::Add; break;
+            case TokenType::SubAssign: bop = BinaryOpNode::Operator::Sub; break;
+            case TokenType::MulAssign: bop = BinaryOpNode::Operator::Mul; break;
+            case TokenType::DivAssign: bop = BinaryOpNode::Operator::Div; break;
+            default: break;
+        }
+        auto bin = std::make_unique<BinaryOpNode>(bop, std::move(leftId), std::move(rhs));
+        return std::make_unique<AssignNode>(std::move(identifier), std::move(bin));
+    }
 
-    skipNewlines();
-
-    auto value = parseExpr();
-    if (!value)
-        return nullptr;
-
-    return std::make_unique<AssignNode>(std::move(identifier), std::move(value));
+    addError("Expected assignment operator (᛬ or op᛬)");
+    return nullptr;
 }
 
 std::unique_ptr<ExprNode> SyntaxParser::parseExpr()
@@ -328,14 +318,23 @@ std::unique_ptr<ExprNode> SyntaxParser::parseMultiplicative()
     if (!left)
         return nullptr;
 
-    while (match(TokenType::Mul))
+    while (true)
     {
-        skipNewlines();
-        auto right = parseUnary();
-        if (!right)
-            return nullptr;
-        left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Mul, std::move(left), std::move(right));
-        skipNewlines();
+        if (match(TokenType::Mul))
+        {
+            auto right = parseUnary();
+            if (!right) return nullptr;
+            left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Mul, std::move(left), std::move(right));
+            continue;
+        }
+        if (match(TokenType::Div))
+        {
+            auto right = parseUnary();
+            if (!right) return nullptr;
+            left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Div, std::move(left), std::move(right));
+            continue;
+        }
+        break;
     }
 
     return left;
@@ -350,6 +349,14 @@ std::unique_ptr<ExprNode> SyntaxParser::parseUnary()
         if (!operand)
             return nullptr;
         return std::make_unique<UnaryOpNode>(UnaryOpNode::Operator::LogicalNot, std::move(operand));
+    }
+
+    if (match(TokenType::Sub))
+    {
+        auto operand = parseUnary();
+        if (!operand) return nullptr;
+        auto zero = std::make_unique<NumberNode>(0);
+        return std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Sub, std::move(zero), std::move(operand));
     }
 
     return parsePrimary();
@@ -375,7 +382,10 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
 
         case TokenType::Number:
         {
-            std::int64_t value = std::stoll(token->lexeme);
+            std::string text = token->lexeme;
+            if (text.size() >= 3 && (text.substr(text.size()-3) == "ᛰ" || text.substr(text.size()-3) == "ᛯ"))
+                text.resize(text.size()-3);
+            std::int64_t value = std::stoll(text);
             eat();
             return std::make_unique<NumberNode>(value);
         }
@@ -386,6 +396,16 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
             bool value = (token->type == TokenType::True);
             eat();
             return std::make_unique<BoolLiteralNode>(value);
+        }
+
+        case TokenType::LParen:
+        {
+            eat();
+            auto inner = parseExpr();
+            if (!inner) return nullptr;
+            if (!expect(TokenType::RParen, "Expected closing parenthesis (ᚭ)"))
+                return nullptr;
+            return inner;
         }
 
         default:

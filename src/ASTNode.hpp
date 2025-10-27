@@ -165,6 +165,7 @@ public:
 		Add,
 		Sub,
 		Mul,
+		Div,
 		Equal,
 		NotEqual
 	};

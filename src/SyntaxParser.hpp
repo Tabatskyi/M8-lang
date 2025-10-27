@@ -29,7 +29,7 @@ public:
     /// Parse a return statement.
     std::unique_ptr<ReturnNode> parseReturn();
     std::unique_ptr<IfNode> parseIf();
-    std::unique_ptr<BlockNode> parseBlock(size_t scopeId);
+    std::unique_ptr<BlockNode> parseBlock(std::unique_ptr<StmtNode> stmt, size_t scopeId);
 
     /// Parse either a declaration or assignment depending on current token.
     std::unique_ptr<DeclNode> parseDecl();
