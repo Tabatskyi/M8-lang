@@ -426,3 +426,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+*CMakeFiles
+*build
+*CMakeCache.txt
+*Makefile
+*.cmake

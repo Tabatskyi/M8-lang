@@ -16,6 +16,7 @@
 		- Expressions with precedence and comparison operators (᛬᛬ ᛅ᛬, ᚲ, ᚲ᛬)
 		- Checked arithmetic operators using a prefix ꑭ (e.g., ꑭ᛭, ꑭᛧ, ꑭ᛫, ꑭᛇ)
 		- If/else without blocks; use a single-character THEN separator ᛜ between condition and consequent
+		- Return statement: ᚷ optionally followed by an expression
 		- Statement separation: only by 'ᛵ'
 		- Integer and boolean literals
 
@@ -33,6 +34,7 @@ stmt           = var_decl
 				| const_decl
 				| assign_stmt
 				| if_stmt
+				| return_stmt
 				| expr_stmt
 				;
 
@@ -41,6 +43,9 @@ expr_stmt      = expr ;
 (* Declarations: ᚡname᛬expr and ᛍname᛬expr  *)
 var_decl       = ( "ᚡ" )  , ident , "᛬" , expr ;
 const_decl     = ( "ᛍ" ) , ident , "᛬" , expr ;
+
+(* Return statement: optionally carries a value *)
+return_stmt    = ( "ᚷ" ) , [ expr ] ;
 
 type           = "ᛰ" | "ᛯ" | "ᛨ" ;
 
