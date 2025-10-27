@@ -1,0 +1,108 @@
+(*
+	M8 Language — Stage 1 Grammar (EBNF)
+
+	This EBNF specifies the concrete syntax for the M8 language used in Stage 1.
+	Constraints for this stage:
+		- No block statements using braces. Control flow composes single statements.
+		- All language keywords are unique, single characters (e.g., let ᚡ, const ᛍ, if ᛗ, else ᛎ).
+		- No whitespace is allowed anywhere in source programs.
+		- Statements are separated only by the single-character separator 'ᛵ'.
+
+	Summary:
+		- Types: i32 ᛰ, i64 ᛯ, bool ᛨ
+		- Declarations: mutable variables (ᚡ), constants (ᛍ)
+		  format: ᚡname᛬expr and ᛍname᛬expr
+		- Assignments and compound assignments
+		- Expressions with precedence and comparison operators (᛬᛬ ᛅ᛬, ᚲ, ᚲ᛬)
+		- Checked arithmetic operators using a prefix ꑭ (e.g., ꑭ᛭, ꑭᛧ, ꑭ᛫, ꑭᛇ)
+		- If/else without blocks; use a single-character THEN separator ᛜ between condition and consequent
+		- Statement separation: only by 'ᛵ'
+		- Integer and boolean literals
+
+	Notes for a lexer:
+		- Reject any whitespace characters; they are not permitted in source.
+		- Identifiers are ASCII [A-Za-z][A-Za-z0-9]*.
+		- Optional integer suffixes ᛰ/ᛯ can disambiguate width; otherwise, type
+		  is determined by context/annotations in later stages.
+		- The "checked" arithmetic operators are distinct tokens beginning with ꑭ.
+*)
+
+program        = stmt , { "ᛵ" , stmt } ;
+
+stmt           = var_decl
+				| const_decl
+				| assign_stmt
+				| if_stmt
+				| expr_stmt
+				;
+
+expr_stmt      = expr ;
+
+(* Declarations: ᚡname᛬expr and ᛍname᛬expr  *)
+var_decl       = ( "ᚡ" )  , ident , "᛬" , expr ;
+const_decl     = ( "ᛍ" ) , ident , "᛬" , expr ;
+
+type           = "ᛰ" | "ᛯ" | "ᛨ" ;
+
+(* If-Else without blocks; ᛜ separates condition from consequent statement *)
+if_stmt        = ( "ᛗ" ) , bool_expr , "ᛜ" , stmt , [ ( "ᛎ" ) , stmt ] ;
+
+(* Assignments *)
+assignment_op  = "᛬" | "᛭᛬" | "ᛧ᛬" | "᛫᛬" | "ᛇ᛬"
+				;
+
+assign_stmt    = ident , assignment_op , expr ;
+
+(* Expressions and precedence *)
+expr           = equality ;
+
+equality       = relation , { ( "᛬᛬" | "ᛅ᛬" ) , relation } ;
+
+relation       = addition , { ( "ᚲ" | "ᚲ᛬" ) , addition } ;
+
+addition       = multiplication , { add_op , multiplication } ;
+
+add_op         = "᛭" | "ᛧ" 
+				| "ꑭ᛭" | "ꑭᛧ" 
+				;
+
+multiplication = unary , { mul_op , unary } ;
+
+mul_op         = "᛫" | "ᛇ" 
+				| "ꑭ᛫" | "ꑭᛇ" 
+				;
+
+unary          = [ ( "ᛧ" | "ᛅ" ) ] , primary ;
+
+primary        = int_lit | bool_lit | ident | "ᚮ" , expr , "ᚭ" ;
+
+(* Boolean expressions reuse expr; semantic typing will enforce bool *)
+bool_expr      = expr ;
+
+(* Literals *)
+int_lit        = dec_lit , [ int_suffix ] ;
+int_suffix     = "ᛰ" | "ᛯ" ;
+
+dec_lit        = digit , { digit } ;
+
+bool_lit       = "ᛉ" | "ᛣ" ;
+
+(* Identifiers *)
+ident          = ident_start , { ident_part } ;
+ident_start    = letter ;
+ident_part     = letter | digit ;
+
+(* Characters *)
+letter         = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M"
+				| "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+				| "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m"
+				| "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
+				;
+
+digit          = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+(*
+	Notes:
+		- Statements are separated only by 'ᛵ'.
+		- If/else uses ᛜ to separate condition from the consequent statement due to no blocks.
+*)

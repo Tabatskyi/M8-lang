@@ -1,0 +1,203 @@
+Tabatskyi: generate ebnf boilerplate according to assignment
+
+GitHub Copilot: Created 3 todos
+
+Using "Apply Patch"
+
+
+```
+
+```
+
+
+Using "Apply Patch"
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/M8-lang.ebnf)
+
+Using "Apply Patch"
+
+
+```
+(*
+	M8 Language — Stage 1 Grammar (EBNF)
+
+	This EBNF specifies the concrete syntax for the M8 language used in Stage 1.
+	It includes:
+		- Types: i32, i64, bool
+		- Declarations: mutable variables (let), constants (const)
+		- Assignments and compound assignments
+		- Expressions with precedence and comparison operators (==, !=, <, <=, >, >=)
+		- Checked arithmetic operators using a shield prefix: 🛡️+ 🛡️- 🛡️* 🛡️/
+		- If-else statements with non-empty blocks
+		- Integer and boolean literals (with emoji aliases for booleans)
+		- Emoji-friendly aliases for some operators and keywords to aid creativity
+
+	Notes for the lexer:
+		- Whitespace (WS) and comments (LINE_COMMENT, BLOCK_COMMENT) are skipped.
+		- Identifiers are ASCII [A-Za-z_][A-Za-z0-9_]* for simplicity.
+		- Integer literals allow underscores as digit separators.
+		- Optional integer suffixes i32/i64 can disambiguate width; otherwise, type
+			is determined by context/annotations in later stages.
+		- The "checked" arithmetic operators are distinct tokens beginning with 🛡️.
+
+	Conventions:
+		- Terminals (tokens) are in double quotes.
+		- Curly braces { … } mean zero-or-more repetition; [ … ] means optional.
+		- A comma , in this EBNF indicates concatenation; actual source uses no commas.
+*)
+
+program        ::= { top_level } ;
+
+top_level      ::= stmt ;
+
+stmt           ::= var_decl
+				| const_decl
+				| assign_stmt
+				| if_stmt
+				| expr_stmt
+				;
+
+expr_stmt      ::= expr;
+
+(* Declarations *)
+var_decl       ::= ( "let" | "📝" ) , ident , ":" , type , "=" , expr ;
+const_decl     ::= ( "const" | "🔒" ) , ident , ":" , type , "=" , expr ;
+
+type           ::= "i32" | "i64" | "bool" ;
+
+(* If-Else with non-empty blocks *)
+if_stmt        ::= ( "if" | "🤔" ) , bool_expr , block , [ ( "else" | "👉" ) , block ] ;
+
+block          ::= "{" , stmt , { stmt } , "}" ;
+
+(* Assignments *)
+assignment_op  ::= "=" | "+=" | "-=" | "*=" | "/="
+				| "🟰" | "➕=" | "➖=" | "✖️=" | "➗="
+				;
+
+assign_stmt    ::= ident , assignment_op , expr ;
+
+(* Expressions and precedence *)
+expr           ::= equality ;
+
+equality       ::= relation , { ( "==" | "!=" | "🤝" | "🙅" ) , relation } ;
+
+relation       ::= addition , { ( "<" | "<=" | ">" | ">=" ) , addition } ;
+
+addition       ::= multiplication , { add_op , multiplication } ;
+
+add_op         ::= "+" | "-" | "➕" | "➖"
+				| "🛡️+" | "🛡️-" | "🛡️➕" | "🛡️➖"
+				;
+
+multiplication ::= unary , { mul_op , unary } ;
+
+mul_op         ::= "*" | "/" | "✖️" | "➗"
+				| "🛡️*" | "🛡️/" | "🛡️✖️" | "🛡️➗"
+				;
+
+unary          ::= [ ( "-" | "➖" | "!" ) ] , primary ;
+
+primary        ::= int_lit | bool_lit | ident | "(" , expr , ")" ;
+
+(* Boolean expressions reuse expr; semantic typing will enforce bool *)
+bool_expr      ::= expr ;
+
+(* Literals *)
+int_lit        ::= dec_lit , [ int_suffix ] ;
+int_suffix     ::= "i32" | "i64" ;
+
+dec_lit        ::= digit , { [ "_" ] , digit } ;
+
+bool_lit       ::= "true" | "false" | "✅" | "❌" ;
+
+(* Identifiers *)
+ident          ::= ident_start , { ident_part } ;
+ident_start    ::= letter | "_" ;
+ident_part     ::= letter | digit | "_" ;
+
+(* Characters *)
+letter         ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M"
+				| "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+				| "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m"
+				| "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
+				;
+
+digit          ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+(* Whitespace and comments (to be skipped by the lexer) *)
+WS             ::= { " " | "\t" | "\r" | "\n" } ;
+
+LINE_COMMENT   ::= "//" , { not_eol } , eol ;
+BLOCK_COMMENT  ::= "/*" , { not_end_comment } , "*/" ;
+
+not_eol        ::= ? any character except \r or \n ? ;
+eol            ::= "\r" | "\n" | "\r\n" ;
+not_end_comment::= ? any character sequence that does not contain "*/" ? ;
+
+(*
+	Emoji aliases summary (all optional; ASCII equivalents always available):
+		- let:  📝
+		- const: 🔒
+		- if:    🤔
+		- else:  👉
+		- true/false: ✅ / ❌
+		- arithmetic ops: ➕ ➖ ✖️ ➗
+		- checked arithmetic: prefix with 🛡️ (e.g., 🛡️➕)
+		- equality: 🤝 (==), 🙅 (!=)
+		- assignment: 🟰 (alias for =)
+*)
+```
+
+
+Starting (3/3) *Summarize design choices*
+
+I’ve drafted and added a complete EBNF grammar for your language to M8-lang.ebnf, covering all required features and including emoji-friendly aliases.
+
+## What’s in the grammar
+
+- Types
+  - i32, i64, bool
+- Variables and constants
+  - Mutable variables: let (emoji alias: 📝)
+  - Constants: const (emoji alias: 🔒)
+  - Declaration form: let/const name: Type = expr
+- Statements
+  - Declarations (let/const)
+  - Assignments (with compound ops)
+  - If-else with non-empty blocks
+  - Expression statements
+- Expressions and operators
+  - Precedence: equality > relational > addition > multiplication > unary > primary
+  - Comparison ops: ==, !=, <, <=, >, >= (emoji aliases for equality: 🤝 for ==, 🙅 for !=)
+  - Arithmetic ops: +, -, *, / (emoji aliases: ➕, ➖, ✖️, ➗)
+  - Overflow-checked arithmetic operators: 🛡️+ 🛡️- 🛡️* 🛡️/ (distinct tokens)
+  - Unary: negation (-/➖) and logical not (!)
+- Literals
+  - Integers with underscores allowed, optional suffixes i32/i64
+  - Booleans: true/false (emoji aliases: ✅/❌)
+- Blocks and if-else
+  - if/else keywords with emoji aliases: 🤔 (if), 👉 (else)
+  - Blocks require at least one statement: { stmt stmt* }
+- Whitespace and comments
+  - Skipped by the lexer: WS, // line comments, /* block comments */
+
+Notes:
+- The grammar uses ; to terminate EBNF productions. To avoid dialect conflicts, I kept statement semicolons implicit in the productions (e.g., expr_stmt ::= expr;). The lexer should still produce a semicolon token for statement termination in the language.
+- Identifiers are kept simple (ASCII [A-Za-z_][A-Za-z0-9_]*). If you’d like Unicode/emoji identifiers, we can relax this later.
+
+## Files changed
+
+- M8-lang.ebnf
+  - Added full grammar with emoji aliases and checked arithmetic operators.
+  - Included lexer notes and an emoji alias summary for quick reference.
+
+## Try it next
+
+- If you want different emojis or additional aliases (e.g., logical and/or), tell me and I’ll adjust the grammar.
+- I can now scaffold the lexer and parser in C++ matching this EBNF, including token enums (with emoji variants), a precedence-based parser, and an AST stub that prints a readable tree.
+
+Completion summary:
+- EBNF boilerplate created and saved in M8-lang.ebnf with all assignment requirements satisfied, including emoji creativity and checked arithmetic syntax. If you want me to proceed with the lexer/parser skeleton and an AST node hierarchy, I can start that next.
+
+Made changes.
