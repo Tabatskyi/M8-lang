@@ -16,6 +16,41 @@ struct VariableInfo
     size_t scopeId;
 };
 
+static std::unordered_map<string, TokenType> doubleOperatorMap = 
+{
+    {"᛬᛬", TokenType::Equals},
+    {"ᛅ᛬", TokenType::NotEqual},
+    {"᛭᛬", TokenType::AddAssign},
+    {"ᛧ᛬", TokenType::SubAssign},
+    {"᛫᛬", TokenType::MulAssign},
+    {"ᛇ᛬", TokenType::DivAssign},
+};
+
+static std::unordered_map<string, TokenType> singleOperatorMap = 
+{
+    {"ᛵ", TokenType::StmtSep},
+    {"ᛜ", TokenType::Then},
+    {"᛬", TokenType::Assign},
+    {"᛭", TokenType::Add},
+    {"ᛧ", TokenType::Sub},
+    {"᛫", TokenType::Mul},
+    {"ᛇ", TokenType::Div},
+    {"ᛅ", TokenType::Not},
+    {"ᚮ", TokenType::LParen},
+    {"ᚭ", TokenType::RParen},
+};
+
+static std::unordered_map<string, TokenType> keywordMap = 
+{
+    {"ᛗ", TokenType::If},
+    {"ᛎ", TokenType::Else},
+    {"ᚷ", TokenType::Return},
+    {"ᚡ", TokenType::Var},
+    {"ᛍ", TokenType::Const},
+    {"ᛉ", TokenType::True},
+    {"ᛣ", TokenType::False},
+};
+
 static bool matchUTF(size_t i, const char* lit, const string& source)
 {
     size_t len = std::char_traits<char>::length(lit);
@@ -50,31 +85,30 @@ static std::vector<Token> lexSource(const string& source)
         {
             if (std::isspace(uc)) { ++i; break; }
 
-            if (matchUTF(i, "᛬᛬", source)) { out.push_back({ "᛬᛬", TokenType::Equals }); i += 6; break; }
-            if (matchUTF(i, "ᛅ᛬", source)) { out.push_back({ "ᛅ᛬", TokenType::NotEqual }); i += 6; break; }
-            if (matchUTF(i, "᛭᛬", source)) { out.push_back({ "᛭᛬", TokenType::AddAssign }); i += 6; break; }
-            if (matchUTF(i, "ᛧ᛬", source)) { out.push_back({ "ᛧ᛬", TokenType::SubAssign }); i += 6; break; }
-            if (matchUTF(i, "᛫᛬", source)) { out.push_back({ "᛫᛬", TokenType::MulAssign }); i += 6; break; }
-            if (matchUTF(i, "ᛇ᛬", source)) { out.push_back({ "ᛇ᛬", TokenType::DivAssign }); i += 6; break; }
+			string doubleLexeme = source.substr(i, 6);
+            if (doubleOperatorMap.count(doubleLexeme)) 
+            {
+                TokenType type = doubleOperatorMap[doubleLexeme];
+                out.push_back({ doubleLexeme, type });
+                i += 6;
+                break;
+			}
 
-            if (matchUTF(i, "ᛵ", source)) { out.push_back({ "ᛵ", TokenType::StmtSep }); i += 3; break; }
-            if (matchUTF(i, "ᛜ", source)) { out.push_back({ "ᛜ", TokenType::Then }); i += 3; break; }
-            if (matchUTF(i, "᛬", source)) { out.push_back({ "᛬", TokenType::Assign }); i += 3; break; }
-            if (matchUTF(i, "᛭", source)) { out.push_back({ "᛭", TokenType::Add }); i += 3; break; }
-            if (matchUTF(i, "ᛧ", source)) { out.push_back({ "ᛧ", TokenType::Sub }); i += 3; break; }
-            if (matchUTF(i, "᛫", source)) { out.push_back({ "᛫", TokenType::Mul }); i += 3; break; }
-            if (matchUTF(i, "ᛇ", source)) { out.push_back({ "ᛇ", TokenType::Div }); i += 3; break; }
-            if (matchUTF(i, "ᛅ", source)) { out.push_back({ "ᛅ", TokenType::Not }); i += 3; break; }
-            if (matchUTF(i, "ᚮ", source)) { out.push_back({ "ᚮ", TokenType::LParen }); i += 3; break; }
-            if (matchUTF(i, "ᚭ", source)) { out.push_back({ "ᚭ", TokenType::RParen }); i += 3; break; }
-
-            if (matchUTF(i, "ᛗ", source)) { out.push_back({ "ᛗ", TokenType::If }); i += 3; break; }
-            if (matchUTF(i, "ᛎ", source)) { out.push_back({ "ᛎ", TokenType::Else }); i += 3; break; }
-            if (matchUTF(i, "ᚷ", source)) { out.push_back({ "ᚷ", TokenType::Return }); i += 3; break; }
-            if (matchUTF(i, "ᚡ", source)) { out.push_back({ "ᚡ", TokenType::Var }); i += 3; break; }
-            if (matchUTF(i, "ᛍ", source)) { out.push_back({ "ᛍ", TokenType::Const }); i += 3; break; }
-            if (matchUTF(i, "ᛉ", source)) { out.push_back({ "ᛉ", TokenType::True }); i += 3; break; }
-            if (matchUTF(i, "ᛣ", source)) { out.push_back({ "ᛣ", TokenType::False }); i += 3; break; }
+            string lexeme = source.substr(i, 3);
+            if (singleOperatorMap.count(lexeme))
+            {
+                TokenType type = singleOperatorMap[lexeme];
+                out.push_back({ lexeme, type });
+                i += 3;
+                break;
+            }
+            if (keywordMap.count(lexeme))
+            {
+                TokenType type = keywordMap[lexeme];
+                out.push_back({ lexeme, type });
+                i += 3;
+                break;
+			}
 
             if (std::isalpha(uc)) {
                 state = State::Identifier;
@@ -82,7 +116,6 @@ static std::vector<Token> lexSource(const string& source)
                 ++i;
                 break;
             }
-
             if (std::isdigit(uc)) {
                 state = State::Number;
                 tokenStart = i;
