@@ -105,13 +105,20 @@ std::unique_ptr<IfNode> SyntaxParser::parseIf()
         return nullptr;
 
     skipNewlines();
-    if (!expect(TokenType::Then, "Expected then separator (ᛜ) after condition"))
-        return nullptr;
-
-    skipNewlines();
-    auto thenStmt = parseStmt();
-    if (!thenStmt) return nullptr;
-    auto thenBlock = parseBlock(std::move(thenStmt), allocateScopeId());
+    std::unique_ptr<BlockNode> thenBlock;
+    if (match(TokenType::Then))
+    {
+        // Then separator present: parse the consequent statement as before
+        skipNewlines();
+        auto thenStmt = parseStmt();
+        if (!thenStmt) return nullptr;
+        thenBlock = parseBlock(std::move(thenStmt), allocateScopeId());
+    }
+    else
+    {
+        // Then separator absent: allow empty consequent (no-op) per language rule
+        thenBlock = std::make_unique<BlockNode>(BlockNode::StmtList{}, allocateScopeId());
+    }
 
     std::unique_ptr<BlockNode> elseBlock;
     if (match(TokenType::Else))
@@ -214,7 +221,7 @@ std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
     {
         TokenType opTok = m_tokens[m_index - 1].type;
         auto rhs = parseExpr();
-        if (!rhs) 
+        if (!rhs)
             return nullptr;
 
         std::unique_ptr<ExprNode> leftId = std::make_unique<IDNode>(identifier);

@@ -1,14 +1,9 @@
 (*
-	M8 Language — Stage 1 Grammar (EBNF)
+	M8 Language Grammar
 
 	This EBNF specifies the concrete syntax for the M8 language used in Stage 1.
-	Constraints for this stage:
-		- No block statements using braces. Control flow composes single statements.
-		- All language keywords are unique, single characters (e.g., let ᚡ, const ᛍ, if ᛗ, else ᛎ).
 		- No whitespace is allowed anywhere in source programs.
-		- Statements are separated only by the single-character separator 'ᛵ'.
-
-	Summary:
+		- Statements are separated only by the single-character separator 'ᛵ' or EOF.
 		- Types: i32 ᛰ, i64 ᛯ, bool ᛨ
 		- Declarations: mutable variables (ᚡ), constants (ᛍ)
 		  format: ᚡname᛬expr and ᛍname᛬expr
@@ -19,13 +14,6 @@
 		- Return statement: ᚷ optionally followed by an expression
 		- Statement separation: only by 'ᛵ'
 		- Integer and boolean literals
-
-	Notes for a lexer:
-		- Reject any whitespace characters; they are not permitted in source.
-		- Identifiers are ASCII [A-Za-z][A-Za-z0-9]*.
-		- Optional integer suffixes ᛰ/ᛯ can disambiguate width; otherwise, type
-		  is determined by context/annotations in later stages.
-		- The "checked" arithmetic operators are distinct tokens beginning with ꑭ.
 *)
 
 program        = stmt , { "ᛵ" , stmt } ;
@@ -49,8 +37,8 @@ return_stmt    = ( "ᚷ" ) , [ expr ] ;
 
 type           = "ᛰ" | "ᛯ" | "ᛨ" ;
 
-(* If-Else without blocks; ᛜ separates condition from consequent statement *)
-if_stmt        = ( "ᛗ" ) , bool_expr , "ᛜ" , stmt , [ ( "ᛎ" ) , stmt ] ;
+(* If-Else; ᛜ separates condition from consequent statement. ᛜ is optional when no consequent statement is present. *)
+if_stmt        = ( "ᛗ" ) , bool_expr , [ "ᛜ" , stmt ] , [ ( "ᛎ" ) , stmt ] ;
 
 (* Assignments *)
 assignment_op  = "᛬" | "᛭᛬" | "ᛧ᛬" | "᛫᛬" | "ᛇ᛬"

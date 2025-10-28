@@ -282,8 +282,9 @@ public:
         if (const ExprNode* cond = node.condition())
         {
             cond->accept(*this);
-            if (cond->type() != ValueType::Bool)
-                addError("Condition of if statement must be bool");
+            ValueType condType = cond->type();
+            if (condType != ValueType::Bool && !isNumeric(condType))
+                addError("Condition of if statement must be bool or integer (0=false, nonzero=true)");
         }
 
         if (const BlockNode* thenBlock = node.thenBlock())
@@ -365,9 +366,9 @@ public:
 
         const ExprNode* operand = node.operand();
         ValueType operandType = operand ? operand->type() : ValueType::Invalid;
-        if (operandType != ValueType::Bool)
+        if (operandType != ValueType::Bool && !isNumeric(operandType))
         {
-            addError("Logical not operator requires bool operand");
+            addError("Logical not operator requires bool or integer operand");
             node.setType(ValueType::Invalid);
             return;
         }
@@ -817,9 +818,25 @@ private:
             return ensureType(std::move(widened), ValueType::I64);
         }
 
-        if (target == ValueType::Bool && value.type != ValueType::Bool)
+        if (target == ValueType::Bool)
+        {
+            if (value.type == ValueType::Bool)
+                return value;
+            if (value.type == ValueType::I32)
+            {
+                string tmp = nextTemp();
+                emitInstruction(tmp + " = icmp ne i32 " + value.operand + ", 0");
+                return {tmp, ValueType::Bool};
+            }
+            if (value.type == ValueType::I64)
+            {
+                string tmp = nextTemp();
+                emitInstruction(tmp + " = icmp ne i64 " + value.operand + ", 0");
+                return {tmp, ValueType::Bool};
+            }
             return {value.operand, ValueType::Invalid};
-
+        }
+        
         return value;
     }
 
