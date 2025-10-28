@@ -1,19 +1,12 @@
 #pragma once
 
 #include "ASTNode.hpp"
+#include "Utility.hpp"
 
 #include <cstddef>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-struct VariableInfo
-{
-    ValueType type = ValueType::Invalid;
-    bool isMutable = false;
-    std::string name;
-    size_t scopeId =0;
-};
 
 class SemanticAnalyzer : public ASTVisitor
 {

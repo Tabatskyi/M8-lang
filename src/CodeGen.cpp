@@ -1,26 +1,5 @@
 #include "CodeGen.hpp"
 
-static bool isNumeric(ValueType type)
-{
-    return type == ValueType::I32 || type == ValueType::I64;
-}
-
-static ValueType widerType(ValueType lhs, ValueType rhs)
-{
-    if (!isNumeric(lhs) || !isNumeric(rhs))
-        return ValueType::Invalid;
-    if (lhs == ValueType::I64 || rhs == ValueType::I64)
-        return ValueType::I64;
-    return ValueType::I32;
-}
-
-static ValueType comparisonOperandType(ValueType lhs, ValueType rhs)
-{
-    if (lhs == ValueType::Bool && rhs == ValueType::Bool)
-        return ValueType::Bool;
-    return widerType(lhs, rhs);
-}
-
 CodeGenerator::CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, VariableInfo>& symbols) : m_ctx(ctx)
 {
     for (const auto& [id, info] : symbols)

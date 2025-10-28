@@ -2,6 +2,7 @@
 
 #include "ASTNode.hpp"
 #include "Semantics.hpp"
+#include "Utility.hpp"
 
 #include <sstream>
 #include <string>

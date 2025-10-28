@@ -1,54 +1,7 @@
 #include "Semantics.hpp"
+
 #include <limits>
 #include <sstream>
-
-static bool isNumeric(ValueType type)
-{
-    return type == ValueType::I32 || type == ValueType::I64;
-}
-
-static ValueType widerType(ValueType lhs, ValueType rhs)
-{
-    if (!isNumeric(lhs) || !isNumeric(rhs))
-        return ValueType::Invalid;
-    if (lhs == ValueType::I64 || rhs == ValueType::I64)
-        return ValueType::I64;
-    return ValueType::I32;
-}
-
-static ValueType comparisonOperandType(ValueType lhs, ValueType rhs)
-{
-    if (lhs == ValueType::Bool && rhs == ValueType::Bool)
-        return ValueType::Bool;
-    return widerType(lhs, rhs);
-}
-
-static bool isAssignable(ValueType target, ValueType source)
-{
-    if (target == ValueType::Invalid || source == ValueType::Invalid)
-        return false;
-    if (target == source)
-        return true;
-    if (target == ValueType::I64 && source == ValueType::I32)
-        return true;
-    return false;
-}
-
-static bool canConvertToI32(ValueType type)
-{
-    return type == ValueType::I32 || type == ValueType::I64 || type == ValueType::Bool;
-}
-
-static std::string typeToString(ValueType type)
-{
-    switch (type)
-    {
-    case ValueType::I32: return "i32";
-    case ValueType::I64: return "i64";
-    case ValueType::Bool: return "bool";
-    default: return "<invalid>";
-    }
-}
 
 bool SemanticAnalyzer::analyze(const ProgramNode& program)
 {

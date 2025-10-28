@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "Utility.hpp"
+
 class ProgramNode;
 class BlockNode;
 class StmtNode;
@@ -18,17 +20,6 @@ class NumberNode;
 class BoolLiteralNode;
 class BinaryOpNode;
 class UnaryOpNode;
-
-enum class ValueType
-{
-	Invalid,
-	I32,
-	I64,
-	Bool
-};
-
-using SymbolID = size_t;
-constexpr SymbolID InvalidSymbolID = static_cast<SymbolID>(-1);
 
 class ASTVisitor
 {
