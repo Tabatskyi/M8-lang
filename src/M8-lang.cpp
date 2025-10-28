@@ -10,10 +10,10 @@ struct IRContext
 
 struct VariableInfo
 {
-    ValueType type;
-    bool isMutable;
+    ValueType type = ValueType::Invalid;
+    bool isMutable = false;
     string name;
-    size_t scopeId;
+    size_t scopeId = 0 ;
 };
 
 static std::unordered_map<string, TokenType> doubleOperatorMap = 
@@ -491,7 +491,7 @@ private:
 struct CodegenValue
 {
     string operand;
-    ValueType type;
+	ValueType type = ValueType::Invalid;
 };
 
 struct CodegenVariable
@@ -651,7 +651,7 @@ public:
             leftValue = ensureType(std::move(leftValue), targetType);
             rightValue = ensureType(std::move(rightValue), targetType);
 
-            const char* opInstr;
+			string opInstr;
             if (node.op() == BinaryOpNode::Operator::Add)
                 opInstr = "add";
             else if (node.op() == BinaryOpNode::Operator::Sub)
@@ -673,7 +673,7 @@ public:
             leftValue = ensureType(std::move(leftValue), operandType);
             rightValue = ensureType(std::move(rightValue), operandType);
 
-            const char* cmp = (node.op() == BinaryOpNode::Operator::Equal) ? "icmp eq" : "icmp ne";
+            string cmp = (node.op() == BinaryOpNode::Operator::Equal) ? "icmp eq" : "icmp ne";
             string tmp = nextTemp();
             emitInstruction(tmp + " = " + cmp + " " + llvmType(operandType) + " " + leftValue.operand + ", " + rightValue.operand);
             pushValue({tmp, ValueType::Bool});
@@ -869,7 +869,7 @@ private:
             }
             return {value.operand, ValueType::Invalid};
         }
-        
+
         return value;
     }
 

@@ -18,3 +18,38 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 add_subdirectory ("src")
+
+# -----------------------------
+# Testing (CTest)
+# -----------------------------
+include(CTest)
+if (BUILD_TESTING)
+  enable_testing()
+
+  # Directory to write compiler outputs during tests
+  set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test_outputs")
+  file(MAKE_DIRECTORY "${TEST_OUTPUT_DIR}")
+
+  # Gather test files
+  file(GLOB PASS_TESTS "${CMAKE_CURRENT_SOURCE_DIR}/test/pass/*.m8")
+  file(GLOB FAIL_TESTS "${CMAKE_CURRENT_SOURCE_DIR}/test/fail/*.m8")
+
+  # Add passing tests: expect exit code 0
+  foreach(TEST_FILE IN LISTS PASS_TESTS)
+    get_filename_component(TEST_NAME_WE "${TEST_FILE}" NAME_WE)
+    add_test(
+      NAME pass_${TEST_NAME_WE}
+      COMMAND $<TARGET_FILE:M8-lang> "${TEST_FILE}" "${TEST_OUTPUT_DIR}/${TEST_NAME_WE}.ll"
+    )
+  endforeach()
+
+  # Add failing tests: expect non-zero exit code
+  foreach(TEST_FILE IN LISTS FAIL_TESTS)
+    get_filename_component(TEST_NAME_WE "${TEST_FILE}" NAME_WE)
+    add_test(
+      NAME fail_${TEST_NAME_WE}
+      COMMAND $<TARGET_FILE:M8-lang> "${TEST_FILE}" "${TEST_OUTPUT_DIR}/${TEST_NAME_WE}.ll"
+    )
+    set_tests_properties(fail_${TEST_NAME_WE} PROPERTIES WILL_FAIL TRUE)
+  endforeach()
+endif()
