@@ -108,7 +108,6 @@ std::unique_ptr<IfNode> SyntaxParser::parseIf()
     std::unique_ptr<BlockNode> thenBlock;
     if (match(TokenType::Then))
     {
-        // Then separator present: parse the consequent statement as before
         skipNewlines();
         auto thenStmt = parseStmt();
         if (!thenStmt) return nullptr;
@@ -116,7 +115,6 @@ std::unique_ptr<IfNode> SyntaxParser::parseIf()
     }
     else
     {
-        // Then separator absent: allow empty consequent (no-op) per language rule
         thenBlock = std::make_unique<BlockNode>(BlockNode::StmtList{}, allocateScopeId());
     }
 
@@ -403,16 +401,6 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
             bool value = (token->type == TokenType::True);
             eat();
             return std::make_unique<BoolLiteralNode>(value);
-        }
-
-        case TokenType::LParen:
-        {
-            eat();
-            auto inner = parseExpr();
-            if (!inner) return nullptr;
-            if (!expect(TokenType::RParen, "Expected closing parenthesis (ᚭ)"))
-                return nullptr;
-            return inner;
         }
 
         default:

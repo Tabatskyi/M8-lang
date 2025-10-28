@@ -28,10 +28,6 @@ enum class TokenType
     True, // 'ᛉ'
     False, // 'ᛣ'
 
-    // Grouping
-    LParen, // 'ᚮ'
-    RParen, // 'ᚭ'
-
     // Operators
     Assign, // '᛬'
     Equals, // '᛬᛬'
@@ -43,6 +39,10 @@ enum class TokenType
     Div, // 'ᛇ'
 
     // not used yet
+    // Grouping
+    LParen, // 'ᚮ'
+    RParen, // 'ᚭ'
+
     // Logical ops
     And, // 'ᛤ'
     Or, // 'ᚢ'
