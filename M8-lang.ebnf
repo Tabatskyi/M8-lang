@@ -1,21 +1,3 @@
-(*
-	M8 Language Grammar
-
-	This EBNF specifies the concrete syntax for the M8 language used in Stage 1.
-		- No whitespace is allowed anywhere in source programs.
-		- Statements are separated only by the single-character separator 'ᛵ' or EOF.
-		- Types: i32 ᛰ, i64 ᛯ, bool ᛨ
-		- Declarations: mutable variables (ᚡ), constants (ᛍ)
-		  format: ᚡname᛬expr and ᛍname᛬expr
-		- Assignments and compound assignments
-		- Expressions with precedence and comparison operators (᛬᛬ ᛅ᛬, ᚲ, ᚲ᛬)
-		- Checked arithmetic operators using a prefix ꑭ (e.g., ꑭ᛭, ꑭᛧ, ꑭ᛫, ꑭᛇ)
-		- If/else without blocks; use a single-character THEN separator ᛜ between condition and consequent
-		- Return statement: ᚷ optionally followed by an expression
-		- Statement separation: only by 'ᛵ'
-		- Integer and boolean literals
-*)
-
 program        = stmt , { "ᛵ" , stmt } ;
 
 stmt           = var_decl

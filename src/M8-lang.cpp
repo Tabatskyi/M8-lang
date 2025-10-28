@@ -1,5 +1,7 @@
 ﻿#include "M8-lang.hpp"
 
+constexpr const int ONE_CHAR_BYTES = 3;
+
 using std::string;
 
 struct IRContext
@@ -85,21 +87,21 @@ static std::vector<Token> lexSource(const string& source)
         {
             if (std::isspace(uc)) { ++i; break; }
 
-			string doubleLexeme = source.substr(i, 6);
+			string doubleLexeme = source.substr(i, ONE_CHAR_BYTES * 2);
             if (doubleOperatorMap.count(doubleLexeme)) 
             {
                 TokenType type = doubleOperatorMap[doubleLexeme];
                 out.push_back({ doubleLexeme, type });
-                i += 6;
+                i += ONE_CHAR_BYTES * 2;
                 break;
 			}
 
-            string lexeme = source.substr(i, 3);
+            string lexeme = source.substr(i, ONE_CHAR_BYTES);
             if (singleOperatorMap.count(lexeme))
             {
                 TokenType type = singleOperatorMap[lexeme];
                 out.push_back({ lexeme, type });
-                i += 3;
+                i += ONE_CHAR_BYTES;
                 break;
             }
             if (keywordMap.count(lexeme))
