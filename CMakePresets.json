@@ -7,10 +7,6 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "cl.exe",
-                "CMAKE_CXX_COMPILER": "cl.exe"
-            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -96,6 +92,44 @@
                     "sourceDir": "$env{HOME}/.vs/$ms{projectDirName}"
                 }
             }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "x64-debug",
+            "displayName": "x64 Debug Build",
+            "configurePreset": "x64-debug",
+            "jobs": 10
+        },
+        {
+            "name": "x64-release",
+            "displayName": "x64 Release Build",
+            "configurePreset": "x64-release",
+            "jobs": 10
+        },
+        {
+            "name": "x86-debug",
+            "displayName": "x86 Debug Build",
+            "configurePreset": "x86-debug",
+            "jobs": 10
+        },
+        {
+            "name": "x86-release",
+            "displayName": "x86 Release Build",
+            "configurePreset": "x86-release",
+            "jobs": 10
+        },
+        {
+            "name": "linux-debug",
+            "displayName": "Linux Debug Build",
+            "configurePreset": "linux-debug",
+            "jobs": 10
+        },
+        {
+            "name": "macos-debug",
+            "displayName": "macOS Debug Build",
+            "configurePreset": "macos-debug",
+            "jobs": 10
         }
     ]
 }

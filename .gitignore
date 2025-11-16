@@ -426,3 +426,14 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+*CMakeFiles
+*build
+*CMakeCache.txt
+*Makefile
+*.cmake
+*.ll
+*M8-lang
+/.vscode
+*.o
+/Testing
+*.tcl

@@ -1,0 +1,83 @@
+program        = stmt , { "ᛵ" , stmt } ;
+
+stmt           = var_decl
+				| const_decl
+				| assign_stmt
+				| if_stmt
+				| return_stmt
+				| expr_stmt
+				;
+
+expr_stmt      = expr ;
+
+(* Declarations: ᚡname᛬expr and ᛍname᛬expr  *)
+var_decl       = ( "ᚡ" )  , ident , "᛬" , expr ;
+const_decl     = ( "ᛍ" ) , ident , "᛬" , expr ;
+
+(* Return statement: optionally carries a value *)
+return_stmt    = ( "ᚷ" ) , [ expr ] ;
+
+type           = "ᛰ" | "ᛯ" | "ᛨ" ;
+
+(* If-Else; ᛜ separates condition from consequent statement. ᛜ is optional when no consequent statement is present. *)
+if_stmt        = ( "ᛗ" ) , bool_expr , [ "ᛜ" , stmt ] , [ ( "ᛎ" ) , stmt ] ;
+
+(* Assignments *)
+assignment_op  = "᛬" | "᛭᛬" | "ᛧ᛬" | "᛫᛬" | "ᛇ᛬"
+				;
+
+assign_stmt    = ident , assignment_op , expr ;
+
+(* Expressions and precedence *)
+expr           = equality ;
+
+equality       = relation , { ( "᛬᛬" | "ᛅ᛬" ) , relation } ;
+
+relation       = addition , { ( "ᚲ" | "ᚲ᛬" ) , addition } ;
+
+addition       = multiplication , { add_op , multiplication } ;
+
+add_op         = "᛭" | "ᛧ" 
+				| "ꑭ᛭" | "ꑭᛧ" 
+				;
+
+multiplication = unary , { mul_op , unary } ;
+
+mul_op         = "᛫" | "ᛇ" 
+				| "ꑭ᛫" | "ꑭᛇ" 
+				;
+
+unary          = [ ( "ᛧ" | "ᛅ" ) ] , primary ;
+
+primary        = int_lit | bool_lit | ident | "ᚮ" , expr , "ᚭ" ;
+
+(* Boolean expressions reuse expr; semantic typing will enforce bool *)
+bool_expr      = expr ;
+
+(* Literals *)
+int_lit        = dec_lit , [ int_suffix ] ;
+int_suffix     = "ᛰ" | "ᛯ" ;
+
+dec_lit        = digit , { digit } ;
+
+bool_lit       = "ᛉ" | "ᛣ" ;
+
+(* Identifiers *)
+ident          = ident_start , { ident_part } ;
+ident_start    = letter ;
+ident_part     = letter | digit ;
+
+(* Characters *)
+letter         = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M"
+				| "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+				| "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m"
+				| "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
+				;
+
+digit          = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+(*
+	Notes:
+		- Statements are separated only by 'ᛵ'.
+		- If/else uses ᛜ to separate condition from the consequent statement due to no blocks.
+*)

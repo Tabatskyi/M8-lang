@@ -1,8 +1,18 @@
-﻿// M8-lang.h : Include file for standard system include files,
-// or project specific include files.
-
 #pragma once
 
+#include <cctype>
+#include <cstddef>
+#include <cstdint>
+#include <fstream>
 #include <iostream>
+#include <limits>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
-// TODO: Reference additional headers your program requires here.
+#include "Token.hpp"
+#include "SyntaxParser.hpp"
+#include "Semantics.hpp"
+#include "CodeGen.hpp"
