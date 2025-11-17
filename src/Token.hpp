@@ -38,7 +38,6 @@ enum class TokenType
     Mul, // '᛫'
     Div, // 'ᛇ'
 
-    // not used yet
     // Grouping
     LParen, // 'ᚮ'
     RParen, // 'ᚭ'
@@ -46,13 +45,16 @@ enum class TokenType
     // Logical ops
     And, // 'ᛤ'
     Or, // 'ᚢ'
-    Xor, // 'ᛥ'
+    Xor, // 'ᛡ'
 
     // Compound assignment operators
     AddAssign, // '᛭᛬'
     SubAssign, // 'ᛧ᛬'
     MulAssign, // '᛫᛬'
     DivAssign, // 'ᛇ᛬'
+
+	Function, // 'ᚠ'
+    Struct, // 'ᛋ'
 
     // Checked ops
     CheckedAdd, // 'ꑭ᛭'

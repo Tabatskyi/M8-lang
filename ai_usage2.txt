@@ -1,0 +1,169 @@
+Tabatskyi: beautify ebnf and add changes to the readme
+
+GitHub Copilot: Optimizing tool selection...I'll inspect the grammar and docs first, then update EBNF and README to cover functions, structs with methods, and standard I/O functions.
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/M8-lang.ebnf)
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/README.md)
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/src/SyntaxParser.cpp)
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/src/M8-lang.hpp)
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/src/Semantics.hpp)
+
+I'll extend the EBNF and README wording only (no compiler changes) to describe functions, struct-with-methods, and standard I/O functions, keeping it consistent with existing runic style.
+
+Using "Apply Patch"
+
+
+```
+(* Types: primitive and user-defined struct types *)
+type           = "ᛰ" | "ᛯ" | "ᛨ" | ident ;
+
+(* Function declarations *
+	- Global function:       ᚠname᛬( args )᛬retType᛬body
+	- Method inside struct:  ᚲname᛬( args )᛬retType᛬body
+	- Void return uses builtin bool type ᛨ with special semantics or a dedicated type name.
+*)
+func_decl      = ( "ᚠ" | "ᚲ" ) , ident , "᛬" , "ᚮ" , [ param_list ] , "ᚭ" , "᛬" , type , "᛬" , block ;
+
+param_list     = param , { "ᛵ" , param } ;
+param          = ident , "᛬" , type ;
+
+(* Struct declarations with data fields and member functions *
+	ᛋName᛬[fieldDecls]ᛵ[methodDecls]
+*)
+struct_decl    = "ᛋ" , ident , "᛬" , struct_body ;
+
+struct_body    = [ field_decl_list ] , [ "ᛵ" , method_decl_list ] ;
+
+field_decl_list   = field_decl , { "ᛵ" , field_decl } ;
+field_decl        = ident , "᛬" , type ;
+
+method_decl_list  = func_decl , { "ᛵ" , func_decl } ;
+
+primary        = int_lit | bool_lit | builtin_func_call | ident | "ᚮ" , expr , "ᚭ" ;
+
+(* Builtin I/O functions *
+	- ᚱ(expr) : read input, returns integer/bool depending on context
+	- ᛈ(expr) : print/println-like output of the expression value
+*)
+builtin_func_call = ( "ᚱ" | "ᛈ" ) , "ᚮ" , [ expr ] , "ᚭ" ;
+```
+Now I'll update the README to describe functions, structs with methods, and the new standard I/O functions.
+
+Using "Apply Patch"
+
+```
+# M8-lang: esoteric runic program language that uses no whitespaces
+
+### Features
+No whitespaces, unreadable code, very esoteric
+
+### M8 Language Grammar
+
+- No whitespace is allowed anywhere in source programs.
+- Statements are separated only by the single-character separator `ᛵ` or EOF.
+- Types: primitive `i32` (`ᛰ`), `i64` (`ᛯ`), `bool` (`ᛨ`), plus user-defined struct types.
+- Declarations: mutable variables (`ᚡ`), constants (`ᛍ`) format: `ᚡname᛬expr` and `ᛍname᛬expr`.
+- Assignments and compound assignments.
+- Expressions with precedence and comparison operators (`᛬᛬`, `ᛅ᛬`, `ᚲ`, `ᚲ᛬`) (some may be not implemented yet).
+- Checked arithmetic operators using a prefix `ꑭ` (e.g., `ꑭ᛭`, `ꑭᛧ`, `ꑭ᛫`, `ꑭᛇ`) (not implemented yet).
+- If/else without blocks; uses a single-character THEN separator `ᛜ` between condition and consequent.
+- Return statement: `ᚷ` optionally followed by an expression.
+- Integer and boolean literals.
+
+### Functions
+
+- Function declaration keyword: `ᚠ` for top-level functions, `ᚲ` for methods inside structs.
+- General shape: `ᚠname᛬ᚮarg1᛬type1ᛵarg2᛬type2ᚭ᛬retType᛬body`.
+- Parameters are separated by `ᛵ`, each as `name᛬type`.
+- Return type is any valid `type` (primitive or struct).
+
+### Structs with fields and methods
+
+- Struct declaration keyword: `ᛋ`.
+- General shape: `ᛋName᛬field1᛬type1ᛵfield2᛬type2ᛵ...ᛵᚠmethod᛬ᚮargsᚭ᛬retType᛬body`.
+- Fields are `name᛬type` separated by `ᛵ`.
+- Methods are declared with `ᚲ` inside the struct body and can access the struct's fields.
+
+### Standard I/O functions
+
+- `ᚱ(expr)` – input: evaluates `expr` as a prompt/target and reads a value from standard input; result type depends on context (typically integer or bool).
+- `ᛈ(expr)` – output: evaluates `expr` and writes its value to standard output (print/println equivalent).
+
+### Compile and run:
+1. `cmake .`
+2. `cd src`
+3. `make`
+4. `./M8-lang <source> <output>`
+
+### How to test:
+build, then run `cd .. && ctest`
+
+### VS Code extension:
+https://github.com/Tabatskyi/VSCodeM8LangSupport
+```
+
+Made changes.
+
+Tabatskyi: @agent Try Again
+
+GitHub Copilot: Here’s what I’ve done and how the language is extended, from the *specification/documentation* side as you requested.
+
+**1. Extended EBNF to include functions, structs, and I/O builtins**
+
+- **Program / top-level:**
+  - `program        = { top_level , "ᛵ" } , [ top_level ] ;`
+  - `top_level      = var_decl | const_decl | func_decl | struct_decl | stmt ;`
+- **Statements (unchanged in spirit, now shared):**
+  - `stmt           = var_decl | const_decl | assign_stmt | if_stmt | return_stmt | expr_stmt ;`
+  - `expr_stmt      = expr ;`
+- **Return (unchanged):**
+  - `return_stmt    = ( "ᚷ" ) , [ expr ] ;`
+- **Types (now include user-defined structs):**
+  - `type           = "ᛰ" | "ᛯ" | "ᛨ" | ident ;`
+- **Function declarations (global and methods):**
+  - `func_decl      = ( "ᚠ" | "ᚲ" ) , ident , "᛬" , "ᚮ" , [ param_list ] , "ᚭ" , "᛬" , type , "᛬" , block ;`
+  - `param_list     = param , { "ᛵ" , param } ;`
+  - `param          = ident , "᛬" , type ;`
+  - `ᚠ` = top‑level function, `ᚲ` = method inside a struct.
+- **Struct declarations with fields and methods:**
+  - `struct_decl       = "ᛋ" , ident , "᛬" , struct_body ;`
+  - `struct_body       = [ field_decl_list ] , [ "ᛵ" , method_decl_list ] ;`
+  - `field_decl_list   = field_decl , { "ᛵ" , field_decl } ;`
+  - `field_decl        = ident , "᛬" , type ;`
+  - `method_decl_list  = func_decl , { "ᛵ" , func_decl } ;`
+  - This allows `ᛋName᛬field1᛬type1ᛵfield2᛬type2ᛵᚲmethod᛬(args)᛬retType᛬body`.
+- **Primary expressions extended with builtin I/O calls:**
+  - `primary        = int_lit | bool_lit | builtin_func_call | ident | "ᚮ" , expr , "ᚭ" ;`
+- **Builtin I/O functions:**
+  - `builtin_func_call = ( "ᚱ" | "ᛈ" ) , "ᚮ" , [ expr ] , "ᚭ" ;`
+  - `ᚱ(...)` acts as a read/input function.
+  - `ᛈ(...)` acts as a print/println‑like output function.
+
+All previous constructs (variable/constant declarations, assignments, if, return, int/bool literals, etc.) remain as in the original EBNF; only the `type`, `program`/`stmt` layering, and `primary` were extended, plus new nonterminals for `func_decl`/`struct_decl` and the builtin I/O.
+
+**2. Updated README to document the new features**
+
+The README.md now:
+
+- Clarifies grammar bullets:
+  - Keeps no-whitespace rule and statement separation by `ᛵ`.
+  - Lists primitive types `ᛰ` (i32), `ᛯ` (i64), `ᛨ` (bool) and notes user-defined struct types.
+- **Functions section:**
+  - Introduces `ᚠ` for top-level functions and `ᚲ` for methods.
+  - Documents general pattern:  
+    `ᚠname᛬ᚮarg1᛬type1ᛵarg2᛬type2ᚭ᛬retType᛬body`.
+  - Explains parameters (`name᛬type` separated by `ᛵ`) and return type.
+- **Structs with fields and methods section:**
+  - Introduces `ᛋ` for struct declarations.
+  - Explains layout:  
+    `ᛋName᛬field1᛬type1ᛵfield2᛬type2ᛵ...ᛵᚲmethod᛬ᚮargsᚭ᛬retType᛬body`.
+  - Notes that methods declared with `ᚲ` live inside the struct body and can access fields.
+- **Standard I/O functions section:**
+  - `ᚱ(expr)` – input (read), value type determined by context (typically int/bool).
+  - `ᛈ(expr)` – output (print/println), writes evaluated expression to stdout.
+
+If you’d like, I can next align the actual lexer/parser/semantics implementation (`Token`, `SyntaxParser`, `SemanticAnalyzer`, `CodeGen`) with these new rules so the functions, structs, and I/O builtins are not only documented but fully supported by the compiler.

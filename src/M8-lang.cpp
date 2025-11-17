@@ -143,6 +143,8 @@ static std::vector<Token> lexSource(const string& source)
     return out;
 }
 
+// semantic helper functions moved to Utility.hpp
+
 int main(int argc, char** argv)
 {
     if (argc < 2)

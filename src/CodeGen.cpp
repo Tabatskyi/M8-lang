@@ -1,4 +1,7 @@
 #include "CodeGen.hpp"
+#include "Utility.hpp"
+
+// semantic helper functions moved to Utility.hpp
 
 CodeGenerator::CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, VariableInfo>& symbols) : m_ctx(ctx)
 {

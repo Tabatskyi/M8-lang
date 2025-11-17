@@ -1,5 +1,14 @@
-program        = stmt , { "ᛵ" , stmt } ;
+program        = { top_level , "ᛵ" } , [ top_level ] ;
 
+(* Top-level constructs: variable/constant declarations, function and struct declarations, or a statement *)
+top_level      = var_decl
+				| const_decl
+				| func_decl
+				| struct_decl
+				| stmt
+				;
+
+(* Statements inside function/struct bodies or at top-level *)
 stmt           = var_decl
 				| const_decl
 				| assign_stmt
@@ -17,7 +26,30 @@ const_decl     = ( "ᛍ" ) , ident , "᛬" , expr ;
 (* Return statement: optionally carries a value *)
 return_stmt    = ( "ᚷ" ) , [ expr ] ;
 
-type           = "ᛰ" | "ᛯ" | "ᛨ" ;
+(* Types: primitive and user-defined struct types *)
+type           = "ᛰ" | "ᛯ" | "ᛨ" | ident ;
+
+(* Function declarations *
+	- Global function:       ᚠname᛬( args )᛬retType᛬body
+	- Method inside struct:  ᛃname᛬( args )᛬retType᛬body
+	- Void return uses builtin bool type ᛨ with special semantics or a dedicated type name.
+*)
+func_decl      = ( "ᚠ" | "ᛃ" ) , ident , "᛬" , "ᚮ" , [ param_list ] , "ᚭ" , "᛬" , type , "᛬" , block ;
+
+param_list     = param , { "ᛵ" , param } ;
+param          = ident , "᛬" , type ;
+
+(* Struct declarations with data fields and member functions *
+	ᛋName᛬[fieldDecls]ᛵ[methodDecls]
+*)
+struct_decl    = "ᛋ" , ident , "᛬" , struct_body ;
+
+struct_body    = [ field_decl_list ] , [ "ᛵ" , method_decl_list ] ;
+
+field_decl_list   = field_decl , { "ᛵ" , field_decl } ;
+field_decl        = ident , "᛬" , type ;
+
+method_decl_list  = func_decl , { "ᛵ" , func_decl } ;
 
 (* If-Else; ᛜ separates condition from consequent statement. ᛜ is optional when no consequent statement is present. *)
 if_stmt        = ( "ᛗ" ) , bool_expr , [ "ᛜ" , stmt ] , [ ( "ᛎ" ) , stmt ] ;
@@ -49,7 +81,13 @@ mul_op         = "᛫" | "ᛇ"
 
 unary          = [ ( "ᛧ" | "ᛅ" ) ] , primary ;
 
-primary        = int_lit | bool_lit | ident | "ᚮ" , expr , "ᚭ" ;
+primary        = int_lit | bool_lit | builtin_func_call | ident | "ᚮ" , expr , "ᚭ" ;
+
+(* Builtin I/O functions *
+	- ᚱ(expr) : read input, returns integer/bool depending on context
+	- ᚹ(expr) : print/println-like output of the expression value
+*)
+builtin_func_call = ( "ᚱ" | "ᚹ" ) , "ᚮ" , [ expr ] , "ᚭ" ;
 
 (* Boolean expressions reuse expr; semantic typing will enforce bool *)
 bool_expr      = expr ;
