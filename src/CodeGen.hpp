@@ -87,9 +87,9 @@ private:
 
 	bool generateBlock(const BlockNode& node, const std::string& exitLabel);
 
-	IRContext& m_ctx;
-	std::unordered_map<SymbolID, CodegenVariable> m_variables;
-	std::vector<CodegenValue> m_stack;
-	int m_labelId =0;
-	bool m_currentBlockTerminated = false;
+	IRContext& _ctx;
+	std::unordered_map<SymbolID, CodegenVariable> _variables;
+	std::vector<CodegenValue> _stack;
+	int _labelId = 0;
+	bool _currentBlockTerminated = false;
 };

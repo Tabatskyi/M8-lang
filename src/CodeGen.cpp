@@ -1,9 +1,7 @@
 #include "CodeGen.hpp"
 #include "Utility.hpp"
 
-// semantic helper functions moved to Utility.hpp
-
-CodeGenerator::CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, VariableInfo>& symbols) : m_ctx(ctx)
+CodeGenerator::CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, VariableInfo>& symbols) : _ctx(ctx)
 {
     for (const auto& [id, info] : symbols)
     {
@@ -11,15 +9,15 @@ CodeGenerator::CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, 
         var.type = info.type;
         var.isMutable = info.isMutable;
         var.pointer = "%" + info.name + "." + std::to_string(id);
-        m_variables.emplace(id, std::move(var));
+        _variables.emplace(id, std::move(var));
     }
 }
 
 void CodeGenerator::generate(const ProgramNode& program)
 {
-    m_currentBlockTerminated = false;
+    _currentBlockTerminated = false;
     program.accept(*this);
-    if (!m_currentBlockTerminated)
+    if (!_currentBlockTerminated)
         emitReturn({ "0", ValueType::I32 });
 }
 
@@ -27,7 +25,7 @@ void CodeGenerator::visitProgram(const ProgramNode& node)
 {
     for (const auto& stmt : node.statements())
     {
-        if (m_currentBlockTerminated)
+        if (_currentBlockTerminated)
             break;
         if (stmt)
             stmt->accept(*this);
@@ -94,7 +92,7 @@ void CodeGenerator::visitIf(const IfNode& node)
     string falseLabel = hasElse ? elseLabel : endLabel;
 
     emitInstruction("br i1 " + condValue.operand + ", label %" + thenLabel + ", label %" + falseLabel);
-    m_currentBlockTerminated = true;
+    _currentBlockTerminated = true;
 
     emitLabel(thenLabel);
     bool thenFallsThrough = generateBlock(*node.thenBlock(), endLabel);
@@ -109,9 +107,9 @@ void CodeGenerator::visitIf(const IfNode& node)
     emitLabel(endLabel);
 
     if (hasElse && !thenFallsThrough && !elseFallsThrough)
-        m_currentBlockTerminated = true;
+        _currentBlockTerminated = true;
     else
-        m_currentBlockTerminated = false;
+        _currentBlockTerminated = false;
 }
 
 void CodeGenerator::visitReturn(const ReturnNode& node) 
@@ -260,43 +258,43 @@ string CodeGenerator::zeroLiteral(ValueType type) const
 
 string CodeGenerator::nextTemp()
 {
-    return "%t" + std::to_string(m_ctx.tempId++);
+    return "%t" + std::to_string(_ctx.tempId++);
 }
 
 string CodeGenerator::nextLabel(const string& base)
 {
-    return base + std::to_string(m_labelId++);
+    return base + std::to_string(_labelId++);
 }
 
 void CodeGenerator::emitLabel(const string& label)
 {
-    m_ctx.ir << label << ":\n";
+    _ctx.ir << label << ":\n";
 }
 
 void CodeGenerator::emitInstruction(const string& text)
 {
-    m_ctx.ir << " " << text << "\n";
+    _ctx.ir << " " << text << "\n";
 }
 
 void CodeGenerator::pushValue(CodegenValue value)
 {
-    m_stack.push_back(std::move(value));
+    _stack.push_back(std::move(value));
 }
 
 CodeGenerator::CodegenValue CodeGenerator::popValue()
 {
-    if (m_stack.empty())
+    if (_stack.empty())
         return { "0", ValueType::Invalid };
-    CodegenValue value = std::move(m_stack.back());
-    m_stack.pop_back();
+    CodegenValue value = std::move(_stack.back());
+    _stack.pop_back();
     return value;
 }
 
 CodeGenerator::CodegenVariable& CodeGenerator::getVariable(SymbolID id)
 {
-    auto it = m_variables.find(id);
-    if (it == m_variables.end())
-        it = m_variables.emplace(id, CodegenVariable{}).first;
+    auto it = _variables.find(id);
+    if (it == _variables.end())
+        it = _variables.emplace(id, CodegenVariable{}).first;
     CodegenVariable& var = it->second;
     if (var.pointer.empty())
         var.pointer = "%tmpvar." + std::to_string(id);
@@ -383,26 +381,26 @@ void CodeGenerator::emitReturn(CodeGenerator::CodegenValue value)
     emitInstruction(fmtPtr + " = getelementptr [29 x i8], [29 x i8]* @fmt, i32 0, i32 0");
     emitInstruction("call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + value.operand + ")");
     emitInstruction("ret i32 " + value.operand);
-    m_currentBlockTerminated = true;
+    _currentBlockTerminated = true;
 }
 
 bool CodeGenerator::generateBlock(const BlockNode& node, const string& exitLabel)
 {
-    bool savedTerminated = m_currentBlockTerminated;
-    m_currentBlockTerminated = false;
+    bool savedTerminated = _currentBlockTerminated;
+    _currentBlockTerminated = false;
 
     for (const auto& stmt : node.statements())
     {
-        if (m_currentBlockTerminated)
+        if (_currentBlockTerminated)
             break;
         if (stmt)
             stmt->accept(*this);
     }
 
-    bool fallsThrough = !m_currentBlockTerminated;
+    bool fallsThrough = !_currentBlockTerminated;
     if (fallsThrough && !exitLabel.empty())
         emitInstruction("br label %" + exitLabel);
 
-    m_currentBlockTerminated = savedTerminated;
+    _currentBlockTerminated = savedTerminated;
     return fallsThrough;
 }

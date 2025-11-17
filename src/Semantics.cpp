@@ -5,17 +5,17 @@
 
 bool SemanticAnalyzer::analyze(const ProgramNode& program)
 {
-    m_errors.clear();
-    m_warnings.clear();
-    m_symbols.clear();
-    m_scopeSymbols.clear();
-    m_scopeStack.clear();
-    m_nextSymbolId =0;
-    m_returnSeen = false;
+    _errors.clear();
+    _warnings.clear();
+    _symbols.clear();
+    _scopeSymbols.clear();
+    _scopeStack.clear();
+    _nextSymbolId =0;
+    _returnSeen = false;
 
     program.accept(*this);
 
-    return m_errors.empty();
+    return _errors.empty();
 }
 
 void SemanticAnalyzer::visitProgram(const ProgramNode& node)
@@ -44,7 +44,7 @@ void SemanticAnalyzer::visitDecl(const DeclNode& node)
 {
     const std::string& name = node.identifier();
     size_t scope = currentScopeId();
-    auto& scopeMap = m_scopeSymbols[scope];
+    auto& scopeMap = _scopeSymbols[scope];
     if (scopeMap.count(name))
     {
         addError("Variable '" + name + "' redeclared");
@@ -64,12 +64,12 @@ void SemanticAnalyzer::visitDecl(const DeclNode& node)
         }
     }
 
-    SymbolID symbolId = m_nextSymbolId++;
+    SymbolID symbolId = _nextSymbolId++;
     scopeMap.emplace(name, symbolId);
     ValueType varType = node.declaredType();
     if (varType == ValueType::Invalid && node.initializer())
         varType = node.initializer()->type();
-    m_symbols.emplace(symbolId, VariableInfo{ varType, node.isMutable(), name, scope });
+    _symbols.emplace(symbolId, VariableInfo{ varType, node.isMutable(), name, scope });
     node.setSymbolId(symbolId);
 }
 
@@ -82,7 +82,7 @@ void SemanticAnalyzer::visitAssign(const AssignNode& node)
     }
     else
     {
-        const auto& info = m_symbols[symbolId];
+        const auto& info = _symbols[symbolId];
         if (!info.isMutable)
             addError("Variable '" + node.identifier() + "' is immutable");
         const_cast<AssignNode&>(node).setSymbolId(symbolId);
@@ -93,7 +93,7 @@ void SemanticAnalyzer::visitAssign(const AssignNode& node)
         value->accept(*this);
         if (symbolId != InvalidSymbolID)
         {
-            const auto& info = m_symbols[symbolId];
+            const auto& info = _symbols[symbolId];
             ValueType valueType = value->type();
             if (!isAssignable(info.type, valueType))
             {
@@ -121,7 +121,7 @@ void SemanticAnalyzer::visitIf(const IfNode& node)
 
 void SemanticAnalyzer::visitReturn(const ReturnNode& node)
 {
-    m_returnSeen = true;
+    _returnSeen = true;
     if (!node.expr())
         return;
 
@@ -210,7 +210,7 @@ void SemanticAnalyzer::visitID(const IDNode& node)
         return;
     }
     const_cast<IDNode&>(node).setSymbolId(symbolId);
-    const_cast<IDNode&>(node).setType(m_symbols.at(symbolId).type);
+    const_cast<IDNode&>(node).setType(_symbols.at(symbolId).type);
 }
 
 void SemanticAnalyzer::visitNumber(const NumberNode& node)
@@ -229,27 +229,27 @@ void SemanticAnalyzer::visitBoolLiteral(const BoolLiteralNode& node)
 
 void SemanticAnalyzer::enterScope(size_t scopeId)
 {
-    m_scopeStack.push_back(scopeId);
-    m_scopeSymbols.try_emplace(scopeId, std::unordered_map<std::string, SymbolID>{});
+    _scopeStack.push_back(scopeId);
+    _scopeSymbols.try_emplace(scopeId, std::unordered_map<std::string, SymbolID>{});
 }
 
 void SemanticAnalyzer::exitScope()
 {
-    if (!m_scopeStack.empty())
-        m_scopeStack.pop_back();
+    if (!_scopeStack.empty())
+        _scopeStack.pop_back();
 }
 
 size_t SemanticAnalyzer::currentScopeId() const
 {
-    return m_scopeStack.empty() ?0 : m_scopeStack.back();
+    return _scopeStack.empty() ?0 : _scopeStack.back();
 }
 
 SymbolID SemanticAnalyzer::resolveSymbol(const std::string& name) const
 {
-    for (auto it = m_scopeStack.rbegin(); it != m_scopeStack.rend(); ++it)
+    for (auto it = _scopeStack.rbegin(); it != _scopeStack.rend(); ++it)
     {
-        auto scopeIt = m_scopeSymbols.find(*it);
-        if (scopeIt == m_scopeSymbols.end())
+        auto scopeIt = _scopeSymbols.find(*it);
+        if (scopeIt == _scopeSymbols.end())
             continue;
 
         auto symIt = scopeIt->second.find(name);
@@ -261,10 +261,10 @@ SymbolID SemanticAnalyzer::resolveSymbol(const std::string& name) const
 
 void SemanticAnalyzer::addError(const std::string& message)
 {
-    m_errors.push_back(message);
+    _errors.push_back(message);
 }
 
 void SemanticAnalyzer::addWarning(const std::string& message)
 {
-    m_warnings.push_back(message);
+    _warnings.push_back(message);
 }

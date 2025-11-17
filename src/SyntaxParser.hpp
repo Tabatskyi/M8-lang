@@ -35,9 +35,9 @@ public:
     std::unique_ptr<ExprNode> parseUnary();
     std::unique_ptr<ExprNode> parsePrimary();
 
-    bool hasErrors() const { return !m_errors.empty(); }
+    bool hasErrors() const { return !_errors.empty(); }
 
-    const std::vector<std::string>& errors() const { return m_errors; }
+    const std::vector<std::string>& errors() const { return _errors; }
 
 private:
     bool atEnd() const;
@@ -50,8 +50,8 @@ private:
 
     void addError(const std::string& message);
 
-    std::vector<Token> m_tokens;
-    size_t m_index = 0;
-    std::vector<std::string> m_errors;
-    size_t m_nextScopeId = 1;
+    std::vector<Token> _tokens;
+    size_t _index = 0;
+    std::vector<std::string> _errors;
+    size_t _nextScopeId = 1;
 };

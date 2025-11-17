@@ -1,20 +1,20 @@
 #include "SyntaxParser.hpp"
 
-SyntaxParser::SyntaxParser(std::vector<Token> tokens): m_tokens(std::move(tokens)) {}
+SyntaxParser::SyntaxParser(std::vector<Token> tokens): _tokens(std::move(tokens)) {}
 
 const Token* SyntaxParser::peek(size_t offset) const
 {
-    size_t target = m_index + offset;
-    if (target >= m_tokens.size())
+    size_t target = _index + offset;
+    if (target >= _tokens.size())
         return nullptr;
-    return& m_tokens[target];
+    return& _tokens[target];
 }
 
 const Token* SyntaxParser::eat()
 {
     if (atEnd())
         return nullptr;
-    return& m_tokens[m_index++];
+    return& _tokens[_index++];
 }
 
 std::unique_ptr<ProgramNode> SyntaxParser::parseProgram()
@@ -24,14 +24,14 @@ std::unique_ptr<ProgramNode> SyntaxParser::parseProgram()
     if (atEnd())
         return std::make_unique<ProgramNode>(std::move(statements), 0);
 
-    auto first = parseStmt();
+    std::unique_ptr<StmtNode> first = parseStmt();
     if (!first) return nullptr;
     statements.push_back(std::move(first));
 
     while (match(TokenType::StmtSep))
     {
         if (atEnd()) break;
-        auto next = parseStmt();
+        std::unique_ptr<StmtNode> next = parseStmt();
         if (!next) return nullptr;
         statements.push_back(std::move(next));
     }
@@ -86,7 +86,7 @@ std::unique_ptr<ReturnNode> SyntaxParser::parseReturn()
             t->type == TokenType::True || t->type == TokenType::False ||
             t->type == TokenType::LParen || t->type == TokenType::Sub || t->type == TokenType::Not)
         {
-            auto expr = parseExpr();
+            std::unique_ptr<ExprNode> expr = parseExpr();
             if (!expr) return nullptr;
             return std::make_unique<ReturnNode>(std::move(expr));
         }
@@ -100,7 +100,7 @@ std::unique_ptr<IfNode> SyntaxParser::parseIf()
         return nullptr;
 
     skipNewlines();
-    auto condition = parseExpr();
+    std::unique_ptr<ExprNode> condition = parseExpr();
     if (!condition)
         return nullptr;
 
@@ -109,7 +109,7 @@ std::unique_ptr<IfNode> SyntaxParser::parseIf()
     if (match(TokenType::Then))
     {
         skipNewlines();
-        auto thenStmt = parseStmt();
+        std::unique_ptr<StmtNode> thenStmt = parseStmt();
         if (!thenStmt) return nullptr;
         thenBlock = parseBlock(std::move(thenStmt), allocateScopeId());
     }
@@ -122,7 +122,7 @@ std::unique_ptr<IfNode> SyntaxParser::parseIf()
     if (match(TokenType::Else))
     {
         skipNewlines();
-        auto elseStmt = parseStmt();
+        std::unique_ptr<StmtNode> elseStmt = parseStmt();
         if (!elseStmt) return nullptr;
         elseBlock = parseBlock(std::move(elseStmt), allocateScopeId());
     }
@@ -162,7 +162,7 @@ std::unique_ptr<DeclNode> SyntaxParser::parseDecl()
     if (!expect(TokenType::Assign, "Expected assignment colon (᛬) in declaration"))
         return nullptr;
 
-    auto initializer = parseExpr();
+    std::unique_ptr<ExprNode> initializer = parseExpr();
     if (!initializer) return nullptr;
 
     return std::make_unique<DeclNode>(ValueType::Invalid, std::move(identifier), isMutable, std::move(initializer));
@@ -211,14 +211,14 @@ std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
 
     if (match(TokenType::Assign))
     {
-        auto value = parseExpr();
+        std::unique_ptr<ExprNode> value = parseExpr();
         if (!value) return nullptr;
         return std::make_unique<AssignNode>(std::move(identifier), std::move(value));
     }
     else if (match(TokenType::AddAssign) || match(TokenType::SubAssign) || match(TokenType::MulAssign) || match(TokenType::DivAssign))
     {
-        TokenType opTok = m_tokens[m_index - 1].type;
-        auto rhs = parseExpr();
+        TokenType opTok = _tokens[_index - 1].type;
+        std::unique_ptr<ExprNode> rhs = parseExpr();
         if (!rhs)
             return nullptr;
 
@@ -232,7 +232,7 @@ std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
             case TokenType::DivAssign: bop = BinaryOpNode::Operator::Div; break;
             default: break;
         }
-        auto bin = std::make_unique<BinaryOpNode>(bop, std::move(leftId), std::move(rhs));
+        std::unique_ptr<BinaryOpNode> bin = std::make_unique<BinaryOpNode>(bop, std::move(leftId), std::move(rhs));
         return std::make_unique<AssignNode>(std::move(identifier), std::move(bin));
     }
 
@@ -247,7 +247,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parseExpr()
 
 std::unique_ptr<ExprNode> SyntaxParser::parseEquality()
 {
-    auto left = parseAdditive();
+    std::unique_ptr<ExprNode> left = parseAdditive();
     if (!left)
         return nullptr;
 
@@ -256,7 +256,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parseEquality()
         if (match(TokenType::Equals))
         {
             skipNewlines();
-            auto right = parseAdditive();
+            std::unique_ptr<ExprNode> right = parseAdditive();
             if (!right)
                 return nullptr;
             left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Equal, std::move(left), std::move(right));
@@ -267,7 +267,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parseEquality()
         if (match(TokenType::NotEqual))
         {
             skipNewlines();
-            auto right = parseAdditive();
+            std::unique_ptr<ExprNode> right = parseAdditive();
             if (!right)
                 return nullptr;
             left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::NotEqual, std::move(left), std::move(right));
@@ -283,7 +283,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parseEquality()
 
 std::unique_ptr<ExprNode> SyntaxParser::parseAdditive()
 {
-    auto left = parseMultiplicative();
+    std::unique_ptr<ExprNode> left = parseMultiplicative();
     if (!left)
         return nullptr;
 
@@ -292,7 +292,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parseAdditive()
         if (match(TokenType::Add))
         {
             skipNewlines();
-            auto right = parseMultiplicative();
+            std::unique_ptr<ExprNode> right = parseMultiplicative();
             if (!right)
                 return nullptr;
             left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Add, std::move(left), std::move(right));
@@ -303,7 +303,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parseAdditive()
         if (match(TokenType::Sub))
         {
             skipNewlines();
-            auto right = parseMultiplicative();
+            std::unique_ptr<ExprNode> right = parseMultiplicative();
             if (!right)
                 return nullptr;
             left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Sub, std::move(left), std::move(right));
@@ -319,7 +319,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parseAdditive()
 
 std::unique_ptr<ExprNode> SyntaxParser::parseMultiplicative()
 {
-    auto left = parseUnary();
+    std::unique_ptr<ExprNode> left = parseUnary();
     if (!left)
         return nullptr;
 
@@ -327,14 +327,14 @@ std::unique_ptr<ExprNode> SyntaxParser::parseMultiplicative()
     {
         if (match(TokenType::Mul))
         {
-            auto right = parseUnary();
+            std::unique_ptr<ExprNode> right = parseUnary();
             if (!right) return nullptr;
             left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Mul, std::move(left), std::move(right));
             continue;
         }
         if (match(TokenType::Div))
         {
-            auto right = parseUnary();
+            std::unique_ptr<ExprNode> right = parseUnary();
             if (!right) return nullptr;
             left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Div, std::move(left), std::move(right));
             continue;
@@ -350,7 +350,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parseUnary()
     if (match(TokenType::Not))
     {
         skipNewlines();
-        auto operand = parseUnary();
+        std::unique_ptr<ExprNode> operand = parseUnary();
         if (!operand)
             return nullptr;
         return std::make_unique<UnaryOpNode>(UnaryOpNode::Operator::LogicalNot, std::move(operand));
@@ -358,9 +358,9 @@ std::unique_ptr<ExprNode> SyntaxParser::parseUnary()
 
     if (match(TokenType::Sub))
     {
-        auto operand = parseUnary();
+        std::unique_ptr<ExprNode> operand = parseUnary();
         if (!operand) return nullptr;
-        auto zero = std::make_unique<NumberNode>(0);
+        std::unique_ptr<NumberNode> zero = std::make_unique<NumberNode>(0);
         return std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Sub, std::move(zero), std::move(operand));
     }
 
@@ -411,7 +411,7 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
 
 bool SyntaxParser::atEnd() const
 {
-    return m_index >= m_tokens.size() || (m_tokens[m_index].type == TokenType::EndOfFile);
+    return _index >= _tokens.size() || (_tokens[_index].type == TokenType::EndOfFile);
 }
 
 bool SyntaxParser::match(TokenType type)
@@ -419,7 +419,7 @@ bool SyntaxParser::match(TokenType type)
     const Token* token = peek();
     if (token&& token->type == type)
     {
-        ++m_index;
+        ++_index;
         return true;
     }
     return false;
@@ -441,10 +441,10 @@ void SyntaxParser::skipNewlines()
 
 size_t SyntaxParser::allocateScopeId()
 {
-    return m_nextScopeId++;
+    return _nextScopeId++;
 }
 
 void SyntaxParser::addError(const std::string& message)
 {
-    m_errors.push_back(message);
+    _errors.push_back(message);
 }
