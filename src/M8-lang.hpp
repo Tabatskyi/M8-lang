@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <cctype>
 #include <cstddef>
@@ -16,3 +16,4 @@
 #include "SyntaxParser.hpp"
 #include "Semantics.hpp"
 #include "CodeGen.hpp"
+#include "Lexer.hpp"

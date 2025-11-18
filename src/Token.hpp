@@ -55,6 +55,7 @@ enum class TokenType
 
 	Function, // 'ᚠ'
     Struct, // 'ᛋ'
+	Method, // 'ᛃ'
 
     // Checked ops
     CheckedAdd, // 'ꑭ᛭'
