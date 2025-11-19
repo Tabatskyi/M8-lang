@@ -1,5 +1,24 @@
 #include "CodeGen.hpp"
-#include "Utility.hpp"
+#include "../General/Utility.hpp"
+
+// Concrete AST node includes
+#include "../AST/ProgramNode.hpp"
+#include "../AST/BlockNode.hpp"
+#include "../AST/DeclNode.hpp"
+#include "../AST/AssignNode.hpp"
+#include "../AST/AssignFieldNode.hpp" // added
+#include "../AST/FieldAccessNode.hpp" // added
+#include "../AST/StructDecNode.hpp" // added
+#include "../AST/FunctionNode.hpp" // added
+#include "../AST/FunctionCallNode.hpp" // added
+#include "../AST/MemberFunctionCallNode.hpp" // added
+#include "../AST/IfNode.hpp"
+#include "../AST/ReturnNode.hpp"
+#include "../AST/BinaryOpNode.hpp"
+#include "../AST/UnaryOpNode.hpp"
+#include "../AST/IDNode.hpp"
+#include "../AST/NumberNode.hpp"
+#include "../AST/BoolLiteralNode.hpp"
 
 CodeGenerator::CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, VariableInfo>& symbols) : _ctx(ctx)
 {
@@ -47,8 +66,9 @@ void CodeGenerator::visitDecl(const DeclNode& node)
     ensureAllocated(var);
 
     CodegenValue value{ zeroLiteral(var.type), var.type };
-    if (const ExprNode* init = node.initializer())
+    if (!node.initializers().empty() && node.initializers().front())
     {
+        const ExprNode* init = node.initializers().front().get();
         init->accept(*this);
         value = popValue();
         value = ensureType(std::move(value), var.type);
@@ -73,6 +93,16 @@ void CodeGenerator::visitAssign(const AssignNode& node)
         value = ensureType(std::move(value), var.type);
         storeValue(var, value);
     }
+}
+
+void CodeGenerator::visitAssignField(const AssignFieldNode& node)
+{
+    // Field assignment code generation placeholder
+    if (node.value())
+        node.value()->accept(*this);
+    // Pop unused value to keep stack balanced
+    if (node.value())
+        popValue();
 }
 
 void CodeGenerator::visitIf(const IfNode& node) 
@@ -230,6 +260,57 @@ void CodeGenerator::visitNumber(const NumberNode& node)
 void CodeGenerator::visitBoolLiteral(const BoolLiteralNode& node) 
 {
     pushValue({ node.value() ? "1" : "0", ValueType::Bool });
+}
+
+void CodeGenerator::visitStructDecl(const StructDeclNode& node)
+{
+    // Placeholder: just visit methods
+    for (const auto& func : node.functions())
+    {
+        if (func)
+            func->accept(*this);
+    }
+}
+
+void CodeGenerator::visitFunction(const FunctionNode& node)
+{
+    // We treat functions like blocks; generate body
+    if (const BlockNode* body = node.body())
+        body->accept(*this);
+}
+
+void CodeGenerator::visitFieldAccess(const FieldAccessNode& node)
+{
+    // Placeholder: push invalid since fields unsupported yet
+    pushValue({ "0", ValueType::Invalid });
+}
+
+void CodeGenerator::visitFunctionCall(const FunctionCallNode& node)
+{
+    // Evaluate arguments (discard for now)
+    for (const auto& arg : node.args())
+    {
+        if (arg)
+        {
+            arg->accept(*this);
+            popValue();
+        }
+    }
+    // Placeholder return value
+    pushValue({ "0", ValueType::I32 });
+}
+
+void CodeGenerator::visitMemberFunctionCall(const MemberFunctionCallNode& node)
+{
+    for (const auto& arg : node.args())
+    {
+        if (arg)
+        {
+            arg->accept(*this);
+            popValue();
+        }
+    }
+    pushValue({ "0", ValueType::I32 });
 }
 
 string CodeGenerator::llvmType(ValueType type) const

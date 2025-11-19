@@ -1,7 +1,25 @@
 #include "Semantics.hpp"
-#include "Utility.hpp"
+#include "../General/Utility.hpp"
 #include <limits>
 #include <sstream>
+
+#include "../AST/ProgramNode.hpp"
+#include "../AST/BlockNode.hpp"
+#include "../AST/DeclNode.hpp"
+#include "../AST/AssignNode.hpp"
+#include "../AST/IfNode.hpp"
+#include "../AST/ReturnNode.hpp"
+#include "../AST/BinaryOpNode.hpp"
+#include "../AST/UnaryOpNode.hpp"
+#include "../AST/IDNode.hpp"
+#include "../AST/NumberNode.hpp"
+#include "../AST/BoolLiteralNode.hpp"
+#include "../AST/AssignFieldNode.hpp"
+#include "../AST/FieldAccessNode.hpp"
+#include "../AST/StructDecNode.hpp"
+#include "../AST/FunctionNode.hpp"
+#include "../AST/FunctionCallNode.hpp"
+#include "../AST/MemberFunctionCallNode.hpp"
 
 bool SemanticAnalyzer::analyze(const ProgramNode& program)
 {
@@ -10,7 +28,7 @@ bool SemanticAnalyzer::analyze(const ProgramNode& program)
     _symbols.clear();
     _scopeSymbols.clear();
     _scopeStack.clear();
-    _nextSymbolId =0;
+    _nextSymbolId = 0;
     _returnSeen = false;
 
     program.accept(*this);
@@ -51,24 +69,29 @@ void SemanticAnalyzer::visitDecl(const DeclNode& node)
         return;
     }
 
-    if (const ExprNode* init = node.initializer())
+    for (const auto& initPtr : node.initializers())
     {
-        init->accept(*this);
-        ValueType initType = init->type();
-        if (node.declaredType() != ValueType::Invalid)
+        if (initPtr)
         {
-            if (!isAssignable(node.declaredType(), initType))
+            initPtr->accept(*this);
+            ValueType initType = initPtr->type();
+            if (node.declaredType().kind == TypeDesc::Kind::Builtin && node.declaredType().builtin != ValueType::Invalid)
             {
-                addError("Cannot initialize '" + name + "' of type " + typeToString(node.declaredType()) + " with value of type " + typeToString(initType));
+                if (!isAssignable(node.declaredType().builtin, initType))
+                {
+                    addError("Cannot initialize '" + name + "' of type " + typeToString(node.declaredType().builtin) + " with value of type " + typeToString(initType));
+                }
             }
         }
     }
 
     SymbolID symbolId = _nextSymbolId++;
     scopeMap.emplace(name, symbolId);
-    ValueType varType = node.declaredType();
-    if (varType == ValueType::Invalid && node.initializer())
-        varType = node.initializer()->type();
+    ValueType varType = ValueType::Invalid;
+    if (node.declaredType().kind == TypeDesc::Kind::Builtin)
+        varType = node.declaredType().builtin;
+    if (varType == ValueType::Invalid && !node.initializers().empty() && node.initializers().front())
+        varType = node.initializers().front()->type();
     _symbols.emplace(symbolId, VariableInfo{ varType, node.isMutable(), name, scope });
     node.setSymbolId(symbolId);
 }
@@ -101,6 +124,14 @@ void SemanticAnalyzer::visitAssign(const AssignNode& node)
             }
         }
     }
+}
+
+void SemanticAnalyzer::visitAssignField(const AssignFieldNode& node)
+{
+    if (const FieldAccessNode* target = node.target())
+        target->accept(*this);
+    if (const ExprNode* value = node.value())
+        value->accept(*this);
 }
 
 void SemanticAnalyzer::visitIf(const IfNode& node)
@@ -227,6 +258,77 @@ void SemanticAnalyzer::visitBoolLiteral(const BoolLiteralNode& node)
     const_cast<BoolLiteralNode&>(node).setType(ValueType::Bool);
 }
 
+void SemanticAnalyzer::visitStructDecl(const StructDeclNode& node)
+{
+    for (const auto& field : node.fields())
+    {
+        if (field.type.kind == TypeDesc::Kind::Builtin && field.type.builtin == ValueType::Invalid)
+            addWarning("Field '" + field.name + "' has invalid type");
+    }
+    for (const auto& funcPtr : node.functions())
+    {
+        if (funcPtr)
+            funcPtr->accept(*this);
+    }
+}
+
+void SemanticAnalyzer::visitFunction(const FunctionNode& node)
+{
+    enterScope(node.scopeId());
+
+    for (const auto& param : node.params())
+    {
+        SymbolID sid = _nextSymbolId++;
+        _scopeSymbols[currentScopeId()][param.name] = sid;
+        _symbols.emplace(sid, VariableInfo{ param.type.kind == TypeDesc::Kind::Builtin ? param.type.builtin : ValueType::Invalid, true, param.name, currentScopeId() });
+        const_cast<FunctionNode::Param&>(param).symbolId = sid;
+    }
+    if (const BlockNode* body = node.body())
+        body->accept(*this);
+    exitScope();
+    if (!_returnSeen && (node.returnType().kind == TypeDesc::Kind::Builtin && node.returnType().builtin != ValueType::Invalid))
+        addWarning("Function '" + node.name() + "' may not return a value");
+    _returnSeen = false; 
+}
+
+void SemanticAnalyzer::visitFieldAccess(const FieldAccessNode& node)
+{
+    SymbolID baseId = resolveSymbol(node.base());
+    if (baseId == InvalidSymbolID)
+    {
+        addError("Field access of undeclared base '" + node.base() + "'");
+        return;
+    }
+    const_cast<FieldAccessNode&>(node).setBaseSymbolId(baseId);
+}
+
+void SemanticAnalyzer::visitFunctionCall(const FunctionCallNode& node)
+{
+    for (const auto& arg : node.args())
+    {
+        if (arg)
+            arg->accept(*this);
+    }
+}
+
+void SemanticAnalyzer::visitMemberFunctionCall(const MemberFunctionCallNode& node)
+{
+    SymbolID baseId = resolveSymbol(node.base());
+    if (baseId == InvalidSymbolID)
+    {
+        addError("Member function call on undeclared base '" + node.base() + "'");
+    }
+    else
+    {
+        const_cast<MemberFunctionCallNode&>(node).setBaseSymbolId(baseId);
+    }
+    for (const auto& arg : node.args())
+    {
+        if (arg)
+            arg->accept(*this);
+    }
+}
+
 void SemanticAnalyzer::enterScope(size_t scopeId)
 {
     _scopeStack.push_back(scopeId);
@@ -241,7 +343,7 @@ void SemanticAnalyzer::exitScope()
 
 size_t SemanticAnalyzer::currentScopeId() const
 {
-    return _scopeStack.empty() ?0 : _scopeStack.back();
+    return _scopeStack.empty() ? 0 : _scopeStack.back();
 }
 
 SymbolID SemanticAnalyzer::resolveSymbol(const std::string& name) const

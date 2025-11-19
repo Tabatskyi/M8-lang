@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include <cctype>
-#include <cstddef>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -12,8 +11,8 @@
 #include <utility>
 #include <vector>
 
-#include "Token.hpp"
-#include "SyntaxParser.hpp"
-#include "Semantics.hpp"
-#include "CodeGen.hpp"
-#include "Lexer.hpp"
+#include "../General/Token.hpp"
+#include "../SyntaxParser/SyntaxParser.hpp"
+#include "../Semantics/Semantics.hpp"
+#include "../CodeGen/CodeGen.hpp"
+#include "../Lexer/Lexer.hpp"

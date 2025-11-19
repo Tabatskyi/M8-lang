@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <string>
 #include <unordered_map>
 
@@ -12,7 +11,7 @@ enum class ValueType
     Bool
 };
 
-using SymbolID = std::size_t;
+using SymbolID = size_t;
 constexpr SymbolID InvalidSymbolID = static_cast<SymbolID>(-1);
 
 struct VariableInfo
@@ -20,7 +19,7 @@ struct VariableInfo
     ValueType type = ValueType::Invalid;
     bool isMutable = false;
     std::string name;
-    std::size_t scopeId = 0;
+    size_t scopeId = 0;
 };
 
 inline bool isNumeric(ValueType type)

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "ASTNode.hpp"
-#include "Utility.hpp"
+#include "../AST/ASTVisitor.hpp" // added visitor interface
+#include "../AST/ASTFwd.hpp"      // forward declarations for node types
+#include "../General/Utility.hpp"
 
-#include <cstddef>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -22,6 +22,7 @@ public:
     void visitBlock(const BlockNode& node) override;
     void visitDecl(const DeclNode& node) override;
     void visitAssign(const AssignNode& node) override;
+    void visitAssignField(const AssignFieldNode& node) override; // added
     void visitIf(const IfNode& node) override;
     void visitReturn(const ReturnNode& node) override;
     void visitBinaryOp(const BinaryOpNode& node) override;
@@ -29,6 +30,11 @@ public:
     void visitID(const IDNode& node) override;
     void visitNumber(const NumberNode& node) override;
     void visitBoolLiteral(const BoolLiteralNode& node) override;
+    void visitStructDecl(const StructDeclNode& node) override; // added
+    void visitFunction(const FunctionNode& node) override; // added
+    void visitFieldAccess(const FieldAccessNode& node) override; // added
+    void visitFunctionCall(const FunctionCallNode& node) override; // added
+    void visitMemberFunctionCall(const MemberFunctionCallNode& node) override; // added
 
 private:
     void enterScope(size_t scopeId);
@@ -43,7 +49,7 @@ private:
     std::unordered_map<SymbolID, VariableInfo> _symbols;
     std::unordered_map<size_t, std::unordered_map<std::string, SymbolID>> _scopeSymbols;
     std::vector<size_t> _scopeStack;
-    SymbolID _nextSymbolId =0;
+    SymbolID _nextSymbolId = 0;
     std::vector<std::string> _errors;
     std::vector<std::string> _warnings;
     bool _returnSeen = false;

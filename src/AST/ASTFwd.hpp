@@ -1,0 +1,23 @@
+#pragma once
+
+class ASTNode;
+class StmtNode;
+class ExprNode;
+class FactorNode;
+class ProgramNode;
+class BlockNode;
+class ReturnNode;
+class DeclNode;
+class AssignNode;
+class AssignFieldNode;
+class IfNode;
+class IDNode;
+class NumberNode;
+class BoolLiteralNode;
+class BinaryOpNode;
+class UnaryOpNode;
+class StructDeclNode;
+class FunctionNode;
+class FieldAccessNode;
+class FunctionCallNode;
+class MemberFunctionCallNode;

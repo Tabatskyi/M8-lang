@@ -1,9 +1,9 @@
 #pragma once
 
-#include "ASTNode.hpp"
-#include "Token.hpp"
+#include "../AST/ASTFwd.hpp"
+#include "../AST/TypeDesc.hpp" // for ValueType, TypeDesc
+#include "../General/Token.hpp"
 
-#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -14,11 +14,9 @@ public:
     explicit SyntaxParser(std::vector<Token> tokens);
 
     const Token* peek(size_t offset = 0) const;
-
     const Token* eat();
 
     std::unique_ptr<ProgramNode> parseProgram();
-
     std::unique_ptr<StmtNode> parseStmt();
 
     std::unique_ptr<ReturnNode> parseReturn();
@@ -36,7 +34,6 @@ public:
     std::unique_ptr<ExprNode> parsePrimary();
 
     bool hasErrors() const { return !_errors.empty(); }
-
     const std::vector<std::string>& errors() const { return _errors; }
 
 private:

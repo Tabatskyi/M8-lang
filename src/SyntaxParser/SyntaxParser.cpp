@@ -1,5 +1,18 @@
 #include "SyntaxParser.hpp"
 
+#include "../AST/ProgramNode.hpp"
+#include "../AST/StmtNode.hpp"
+#include "../AST/BlockNode.hpp"
+#include "../AST/ReturnNode.hpp"
+#include "../AST/DeclNode.hpp"
+#include "../AST/AssignNode.hpp"
+#include "../AST/IfNode.hpp"
+#include "../AST/BinaryOpNode.hpp"
+#include "../AST/UnaryOpNode.hpp"
+#include "../AST/IDNode.hpp"
+#include "../AST/NumberNode.hpp"
+#include "../AST/BoolLiteralNode.hpp"
+
 SyntaxParser::SyntaxParser(std::vector<Token> tokens): _tokens(std::move(tokens)) {}
 
 const Token* SyntaxParser::peek(size_t offset) const
@@ -7,14 +20,14 @@ const Token* SyntaxParser::peek(size_t offset) const
     size_t target = _index + offset;
     if (target >= _tokens.size())
         return nullptr;
-    return& _tokens[target];
+    return &_tokens[target];
 }
 
 const Token* SyntaxParser::eat()
 {
     if (atEnd())
         return nullptr;
-    return& _tokens[_index++];
+    return &_tokens[_index++];
 }
 
 std::unique_ptr<ProgramNode> SyntaxParser::parseProgram()
@@ -165,7 +178,10 @@ std::unique_ptr<DeclNode> SyntaxParser::parseDecl()
     std::unique_ptr<ExprNode> initializer = parseExpr();
     if (!initializer) return nullptr;
 
-    return std::make_unique<DeclNode>(ValueType::Invalid, std::move(identifier), isMutable, std::move(initializer));
+    // Adapt to DeclNode constructor expecting vector of initializers
+    std::vector<std::unique_ptr<ExprNode>> inits;
+    inits.push_back(std::move(initializer));
+    return std::make_unique<DeclNode>(TypeDesc::Builtin(ValueType::Invalid), std::move(identifier), isMutable, std::move(inits));
 }
 
 ValueType SyntaxParser::parseType()
@@ -417,7 +433,7 @@ bool SyntaxParser::atEnd() const
 bool SyntaxParser::match(TokenType type)
 {
     const Token* token = peek();
-    if (token&& token->type == type)
+    if (token && token->type == type)
     {
         ++_index;
         return true;
