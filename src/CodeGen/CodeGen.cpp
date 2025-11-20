@@ -1,17 +1,16 @@
 #include "CodeGen.hpp"
 #include "../General/Utility.hpp"
 
-// Concrete AST node includes
 #include "../AST/ProgramNode.hpp"
 #include "../AST/BlockNode.hpp"
 #include "../AST/DeclNode.hpp"
 #include "../AST/AssignNode.hpp"
-#include "../AST/AssignFieldNode.hpp" // added
-#include "../AST/FieldAccessNode.hpp" // added
-#include "../AST/StructDecNode.hpp" // added
-#include "../AST/FunctionNode.hpp" // added
-#include "../AST/FunctionCallNode.hpp" // added
-#include "../AST/MemberFunctionCallNode.hpp" // added
+#include "../AST/AssignFieldNode.hpp"
+#include "../AST/FieldAccessNode.hpp"
+#include "../AST/StructDecNode.hpp"
+#include "../AST/FunctionNode.hpp" 
+#include "../AST/FunctionCallNode.hpp" 
+#include "../AST/MemberFunctionCallNode.hpp"
 #include "../AST/IfNode.hpp"
 #include "../AST/ReturnNode.hpp"
 #include "../AST/BinaryOpNode.hpp"
@@ -97,10 +96,9 @@ void CodeGenerator::visitAssign(const AssignNode& node)
 
 void CodeGenerator::visitAssignField(const AssignFieldNode& node)
 {
-    // Field assignment code generation placeholder
     if (node.value())
         node.value()->accept(*this);
-    // Pop unused value to keep stack balanced
+
     if (node.value())
         popValue();
 }
@@ -264,7 +262,6 @@ void CodeGenerator::visitBoolLiteral(const BoolLiteralNode& node)
 
 void CodeGenerator::visitStructDecl(const StructDeclNode& node)
 {
-    // Placeholder: just visit methods
     for (const auto& func : node.functions())
     {
         if (func)
@@ -274,20 +271,48 @@ void CodeGenerator::visitStructDecl(const StructDeclNode& node)
 
 void CodeGenerator::visitFunction(const FunctionNode& node)
 {
-    // We treat functions like blocks; generate body
     if (const BlockNode* body = node.body())
         body->accept(*this);
 }
 
 void CodeGenerator::visitFieldAccess(const FieldAccessNode& node)
 {
-    // Placeholder: push invalid since fields unsupported yet
     pushValue({ "0", ValueType::Invalid });
 }
 
 void CodeGenerator::visitFunctionCall(const FunctionCallNode& node)
 {
-    // Evaluate arguments (discard for now)
+    if (node.name() == "__builtin_write")
+    {
+        if (!node.args().empty() && node.args().front())
+        {
+            node.args().front()->accept(*this);
+            CodegenValue value = popValue();
+            value = ensureType(std::move(value), ValueType::I32);
+            std::string fmtPtr = nextTemp();
+            emitInstruction(fmtPtr + " = getelementptr [4 x i8], [4 x i8]* @fmtw, i32 0, i32 0");
+            std::string tmp = nextTemp();
+            emitInstruction(tmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + value.operand + ")");
+            pushValue({ tmp, ValueType::I32 });
+        }
+        else
+        {
+            pushValue({ "0", ValueType::I32 });
+        }
+        return;
+    }
+    if (node.name() == "__builtin_read")
+    {
+        std::string ptr = nextTemp();
+        emitInstruction(ptr + " = alloca i32");
+        std::string fmtPtr = nextTemp();
+        emitInstruction(fmtPtr + " = getelementptr [3 x i8], [3 x i8]* @fmtr, i32 0, i32 0");
+        emitInstruction("call i32 (i8*, ...) @scanf(i8* " + fmtPtr + ", i32* " + ptr + ")");
+        std::string loadTmp = nextTemp();
+        emitInstruction(loadTmp + " = load i32, i32* " + ptr);
+        pushValue({ loadTmp, ValueType::I32 });
+        return;
+    }
     for (const auto& arg : node.args())
     {
         if (arg)
@@ -296,7 +321,6 @@ void CodeGenerator::visitFunctionCall(const FunctionCallNode& node)
             popValue();
         }
     }
-    // Placeholder return value
     pushValue({ "0", ValueType::I32 });
 }
 
@@ -458,8 +482,8 @@ void CodeGenerator::storeValue(CodeGenerator::CodegenVariable& var, const CodeGe
 void CodeGenerator::emitReturn(CodeGenerator::CodegenValue value)
 {
     value = ensureType(std::move(value), ValueType::I32);
-    string fmtPtr = nextTemp();
-    emitInstruction(fmtPtr + " = getelementptr [29 x i8], [29 x i8]* @fmt, i32 0, i32 0");
+    std::string fmtPtr = nextTemp();
+    emitInstruction(fmtPtr + " = getelementptr [29 x i8], [29 x i8]* @fmtexit, i32 0, i32 0");
     emitInstruction("call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + value.operand + ")");
     emitInstruction("ret i32 " + value.operand);
     _currentBlockTerminated = true;

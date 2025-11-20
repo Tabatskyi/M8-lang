@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../AST/ASTFwd.hpp"
-#include "../AST/TypeDesc.hpp" // for ValueType, TypeDesc
+#include "../AST/TypeDesc.hpp"
 #include "../General/Token.hpp"
 
 #include <memory>
@@ -19,9 +19,12 @@ public:
     std::unique_ptr<ProgramNode> parseProgram();
     std::unique_ptr<StmtNode> parseStmt();
 
+    std::unique_ptr<FunctionNode> parseFunction(const std::string& masterStruct = {});
+    std::unique_ptr<StructDeclNode> parseStruct();
+
     std::unique_ptr<ReturnNode> parseReturn();
     std::unique_ptr<IfNode> parseIf();
-    std::unique_ptr<BlockNode> parseBlock(std::unique_ptr<StmtNode> stmt, size_t scopeId);
+    std::unique_ptr<BlockNode> parseBlock(std::vector<std::unique_ptr<StmtNode>> statements, size_t scopeId);
 
     std::unique_ptr<DeclNode> parseDecl();
     std::unique_ptr<AssignNode> parseAssign();
@@ -42,7 +45,7 @@ private:
     bool expect(TokenType type, const std::string& message);
 
     void skipNewlines();
-    ValueType parseType();
+    TypeDesc parseTypeDesc();
     size_t allocateScopeId();
 
     void addError(const std::string& message);

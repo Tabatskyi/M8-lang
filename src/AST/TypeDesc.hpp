@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../General/Utility.hpp" // brings in ValueType, SymbolID, InvalidSymbolID
+#include "../General/Utility.hpp"
 
 #include <string>
 #include <utility>

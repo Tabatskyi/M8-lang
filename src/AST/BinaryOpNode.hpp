@@ -12,7 +12,7 @@ public:
 		Add,
 		Sub,
 		Mul,
-		Div, // added missing Div operator
+		Div,
 		Equal,
 		NotEqual
 	};

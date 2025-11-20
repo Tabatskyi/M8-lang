@@ -309,6 +309,10 @@ void SemanticAnalyzer::visitFunctionCall(const FunctionCallNode& node)
         if (arg)
             arg->accept(*this);
     }
+    if (node.name() == "__builtin_read" || node.name() == "__builtin_write")
+    {
+        const_cast<FunctionCallNode&>(node).setType(ValueType::I32);
+    }
 }
 
 void SemanticAnalyzer::visitMemberFunctionCall(const MemberFunctionCallNode& node)

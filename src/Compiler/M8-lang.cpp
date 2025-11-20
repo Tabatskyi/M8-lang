@@ -1,4 +1,5 @@
 #include "M8-lang.hpp"
+#include "../AST/ProgramNode.hpp"
 
 using std::string;
 
@@ -56,8 +57,11 @@ int main(int argc, char** argv)
     }
 
     IRContext ctx;
-    ctx.ir << "declare i32 @printf(i8*, ...)\n\n";
-    ctx.ir << "@fmt = private constant [29 x i8] c\"Program exit with result %d\\0A\\00\"\n\n";
+    ctx.ir << "declare i32 @printf(i8*, ...)\n";
+    ctx.ir << "declare i32 @scanf(i8*, ...)\n\n";
+    ctx.ir << "@fmtexit = private constant [29 x i8] c\"Program exit with result %d\\0A\\00\"\n";
+    ctx.ir << "@fmtw = private constant [4 x i8] c\"%d\\0A\\00\"\n";
+    ctx.ir << "@fmtr = private constant [3 x i8] c\"%d\\00\"\n\n";
     ctx.ir << "define i32 @main() {\n";
 
     CodeGenerator generator(ctx, semantic.symbols());

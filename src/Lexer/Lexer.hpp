@@ -47,6 +47,8 @@ static std::unordered_map<string, TokenType> keywordMap =
     {"ᚠ", TokenType::Function},
     {"ᛋ", TokenType::Struct},
     {"ᛃ", TokenType::Method},
+    {"ᚱ", TokenType::Read},
+    {"ᚹ", TokenType::Write},
 };
 
 class Lexer

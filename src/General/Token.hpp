@@ -57,6 +57,10 @@ enum class TokenType
     Struct, // 'ᛋ'
 	Method, // 'ᛃ'
 
+    // I/O
+    Read, // 'ᚱ'
+    Write, // 'ᚹ'
+
     // Checked ops
     CheckedAdd, // 'ꑭ᛭'
     CheckedSub, // 'ꑭᛧ'

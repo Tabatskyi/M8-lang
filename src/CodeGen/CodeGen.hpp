@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../AST/ASTFwd.hpp"      // forward decls for node types
-#include "../AST/ASTVisitor.hpp"  // visitor interface
+#include "../AST/ASTFwd.hpp"
+#include "../AST/ASTVisitor.hpp"
 #include "../Semantics/Semantics.hpp"
 #include "../General/Utility.hpp"
 
@@ -45,7 +45,7 @@ public:
     void visitBlock(const BlockNode& node) override;
     void visitDecl(const DeclNode& node) override;
     void visitAssign(const AssignNode& node) override;
-    void visitAssignField(const AssignFieldNode& node) override; // added
+    void visitAssignField(const AssignFieldNode& node) override;
     void visitIf(const IfNode& node) override;
     void visitReturn(const ReturnNode& node) override;
     void visitBinaryOp(const BinaryOpNode& node) override;
@@ -53,11 +53,11 @@ public:
     void visitID(const IDNode& node) override;
     void visitNumber(const NumberNode& node) override;
     void visitBoolLiteral(const BoolLiteralNode& node) override;
-    void visitStructDecl(const StructDeclNode& node) override; // added
-    void visitFunction(const FunctionNode& node) override; // added
-    void visitFieldAccess(const FieldAccessNode& node) override; // added
-    void visitFunctionCall(const FunctionCallNode& node) override; // added
-    void visitMemberFunctionCall(const MemberFunctionCallNode& node) override; // added
+    void visitStructDecl(const StructDeclNode& node) override;
+    void visitFunction(const FunctionNode& node) override;
+    void visitFieldAccess(const FieldAccessNode& node) override;
+    void visitFunctionCall(const FunctionCallNode& node) override;
+    void visitMemberFunctionCall(const MemberFunctionCallNode& node) override;
 
 private:
     struct CodegenValue
