@@ -60,19 +60,10 @@ public:
     void visitMemberFunctionCall(const MemberFunctionCallNode& node) override;
 
 private:
-    struct CodegenValue
+    struct FunctionSignature
     {
-        std::string operand;
-        ValueType type = ValueType::Invalid;
-    };
-
-    struct CodegenVariable
-    {
-        ValueType type = ValueType::Invalid;
-        bool isMutable = false;
-        bool allocated = false;
-        bool initialized = false;
-        std::string pointer;
+        ValueType returnType = ValueType::Invalid;
+        std::vector<ValueType> paramTypes; // in order
     };
 
     std::string llvmType(ValueType type) const;
@@ -93,10 +84,14 @@ private:
     void emitReturn(CodegenValue value);
 
     bool generateBlock(const BlockNode& node, const std::string& exitLabel);
+    void scanFunctions(const ProgramNode& program);
 
     IRContext& _ctx;
     std::unordered_map<SymbolID, CodegenVariable> _variables;
     std::vector<CodegenValue> _stack;
     int _labelId = 0;
     bool _currentBlockTerminated = false;
+    std::unordered_map<std::string, FunctionSignature> _functions;
+    ValueType _currentFunctionReturnType = ValueType::I32; // default main return
+    bool _insideFunction = false;
 };

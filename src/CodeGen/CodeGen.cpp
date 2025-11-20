@@ -31,24 +31,90 @@ CodeGenerator::CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, 
     }
 }
 
-void CodeGenerator::generate(const ProgramNode& program)
+void CodeGenerator::scanFunctions(const ProgramNode& program)
 {
-    _currentBlockTerminated = false;
-    program.accept(*this);
-    if (!_currentBlockTerminated)
-        emitReturn({ "0", ValueType::I32 });
-}
-
-void CodeGenerator::visitProgram(const ProgramNode& node) 
-{
-    for (const auto& stmt : node.statements())
+    for (const auto& stmt : program.statements())
     {
-        if (_currentBlockTerminated)
-            break;
-        if (stmt)
-            stmt->accept(*this);
+        if (!stmt) continue;
+        if (auto* fn = dynamic_cast<FunctionNode*>(stmt.get()))
+        {
+            FunctionSignature sig;
+            if (fn->returnType().kind == TypeDesc::Kind::Builtin)
+                sig.returnType = fn->returnType().builtin;
+            for (const auto& p : fn->params())
+            {
+                if (p.type.kind == TypeDesc::Kind::Builtin)
+                    sig.paramTypes.push_back(p.type.builtin);
+                else
+                    sig.paramTypes.push_back(ValueType::Invalid);
+            }
+            _functions.emplace(fn->name(), sig);
+        }
+        else if (auto* sd = dynamic_cast<StructDeclNode*>(stmt.get()))
+        {
+            for (const auto& mptr : sd->functions())
+            {
+                if (!mptr) continue;
+                FunctionSignature sig;
+                if (mptr->returnType().kind == TypeDesc::Kind::Builtin)
+                    sig.returnType = mptr->returnType().builtin;
+                for (const auto& p : mptr->params())
+                {
+                    if (p.type.kind == TypeDesc::Kind::Builtin)
+                        sig.paramTypes.push_back(p.type.builtin);
+                    else
+                        sig.paramTypes.push_back(ValueType::Invalid);
+                }
+                _functions.emplace(mptr->name(), sig);
+            }
+        }
     }
 }
+
+void CodeGenerator::generate(const ProgramNode& program)
+{
+    scanFunctions(program);
+
+    for (const auto& stmt : program.statements())
+    {
+        if (!stmt) continue;
+        if (auto* fn = dynamic_cast<FunctionNode*>(stmt.get()))
+        {
+            if (fn->name() == "main") 
+                continue;
+            fn->accept(*this);
+        }
+        else if (auto* sd = dynamic_cast<StructDeclNode*>(stmt.get()))
+        {
+            for (const auto& mptr : sd->functions())
+            {
+                if (mptr && mptr->name() != "main")
+                    mptr->accept(*this);
+            }
+        }
+    }
+
+    bool mainFound = _functions.count("main") > 0;
+    if (mainFound)
+    {
+        for (const auto& stmt : program.statements())
+        {
+            if (auto* fn = dynamic_cast<FunctionNode*>(stmt.get()); fn && fn->name() == "main")
+            {
+                fn->accept(*this);
+                break;
+            }
+        }
+    }
+    else
+    {
+        _ctx.ir << "define i32 @main() {\n";
+        emitInstruction("ret i32 0");
+        _ctx.ir << "}\n";
+    }
+}
+
+void CodeGenerator::visitProgram(const ProgramNode& node) {}
 
 void CodeGenerator::visitBlock(const BlockNode& node) 
 {
@@ -142,14 +208,13 @@ void CodeGenerator::visitIf(const IfNode& node)
 
 void CodeGenerator::visitReturn(const ReturnNode& node) 
 {
-    if (!node.expr())
+    CodegenValue value{ zeroLiteral(_currentFunctionReturnType), _currentFunctionReturnType };
+    if (node.expr())
     {
-        emitReturn({ "0", ValueType::I32 });
-        return;
+        node.expr()->accept(*this);
+        value = popValue();
+        value = ensureType(std::move(value), _currentFunctionReturnType);
     }
-
-    node.expr()->accept(*this);
-    CodegenValue value = popValue();
     emitReturn(std::move(value));
 }
 
@@ -271,8 +336,45 @@ void CodeGenerator::visitStructDecl(const StructDeclNode& node)
 
 void CodeGenerator::visitFunction(const FunctionNode& node)
 {
+    FunctionSignature sig = _functions[node.name()];
+    _currentFunctionReturnType = sig.returnType == ValueType::Invalid ? ValueType::I32 : sig.returnType;
+    _insideFunction = true;
+
+    std::string paramList;
+    for (size_t i = 0; i < sig.paramTypes.size(); ++i)
+    {
+        if (i) paramList += ", ";
+        paramList += llvmType(sig.paramTypes[i]);
+    }
+
+    _ctx.ir << "define " << llvmType(_currentFunctionReturnType) << " @" << node.name() << "(" << paramList << ") {\n";
+
+    size_t idx = 0;
+    for (const auto& p : node.params())
+    {
+        SymbolID sid = p.symbolId;
+        CodegenVariable& var = getVariable(sid);
+        std::string rawArg = "%" + std::to_string(idx++);
+        var.pointer = "%" + p.name + "." + std::to_string(sid);
+        emitInstruction(var.pointer + " = alloca " + llvmType(sig.paramTypes[idx-1]));
+        emitInstruction("store " + llvmType(sig.paramTypes[idx-1]) + " " + rawArg + ", " + llvmType(sig.paramTypes[idx-1]) + "* " + var.pointer);
+        var.type = sig.paramTypes[idx-1];
+        var.initialized = true;
+        var.allocated = true;
+    }
+
     if (const BlockNode* body = node.body())
         body->accept(*this);
+
+    if (!_currentBlockTerminated)
+    {
+        emitInstruction("ret " + llvmType(_currentFunctionReturnType) + " " + zeroLiteral(_currentFunctionReturnType));
+    }
+
+    _ctx.ir << "}\n";
+
+    _insideFunction = false;
+    _currentBlockTerminated = false;
 }
 
 void CodeGenerator::visitFieldAccess(const FieldAccessNode& node)
@@ -313,28 +415,79 @@ void CodeGenerator::visitFunctionCall(const FunctionCallNode& node)
         pushValue({ loadTmp, ValueType::I32 });
         return;
     }
-    for (const auto& arg : node.args())
+
+    auto it = _functions.find(node.name());
+    if (it == _functions.end())
     {
-        if (arg)
+        for (const auto& arg : node.args())
         {
-            arg->accept(*this);
-            popValue();
+            if (arg) { arg->accept(*this); popValue(); }
+        }
+        pushValue({ "0", ValueType::I32 });
+        return;
+    }
+
+    const FunctionSignature& sig = it->second;
+    std::vector<CodegenValue> argValues;
+    for (size_t i = 0; i < node.args().size(); ++i)
+    {
+        if (node.args()[i])
+        {
+            node.args()[i]->accept(*this);
+            CodegenValue v = popValue();
+            ValueType expected = (i < sig.paramTypes.size()) ? sig.paramTypes[i] : ValueType::Invalid;
+            v = ensureType(std::move(v), expected);
+            argValues.push_back(v);
         }
     }
-    pushValue({ "0", ValueType::I32 });
+
+    std::string callTmp = nextTemp();
+    std::string irCall = callTmp + " = call " + llvmType(sig.returnType == ValueType::Invalid ? ValueType::I32 : sig.returnType) + " @" + node.name() + "(";
+    for (size_t i = 0; i < argValues.size(); ++i)
+    {
+        if (i) irCall += ", ";
+        ValueType t = (i < sig.paramTypes.size()) ? sig.paramTypes[i] : argValues[i].type;
+        irCall += llvmType(t) + " " + argValues[i].operand;
+    }
+    irCall += ")";
+    emitInstruction(irCall);
+    pushValue({ callTmp, sig.returnType == ValueType::Invalid ? ValueType::I32 : sig.returnType });
 }
 
 void CodeGenerator::visitMemberFunctionCall(const MemberFunctionCallNode& node)
 {
-    for (const auto& arg : node.args())
+    auto it = _functions.find(node.funcName());
+    std::vector<CodegenValue> argValues;
+    for (size_t i = 0; i < node.args().size(); ++i)
     {
-        if (arg)
+        if (node.args()[i])
         {
-            arg->accept(*this);
-            popValue();
+            node.args()[i]->accept(*this);
+            CodegenValue v = popValue();
+            ValueType expected = ValueType::Invalid;
+            if (it != _functions.end() && i < it->second.paramTypes.size())
+                expected = it->second.paramTypes[i];
+            v = ensureType(std::move(v), expected);
+            argValues.push_back(v);
         }
     }
-    pushValue({ "0", ValueType::I32 });
+    if (it == _functions.end())
+    {
+        pushValue({ "0", ValueType::I32 });
+        return;
+    }
+    const FunctionSignature& sig = it->second;
+    std::string callTmp = nextTemp();
+    std::string irCall = callTmp + " = call " + llvmType(sig.returnType == ValueType::Invalid ? ValueType::I32 : sig.returnType) + " @" + node.funcName() + "(";
+    for (size_t i = 0; i < argValues.size(); ++i)
+    {
+        if (i) irCall += ", ";
+        ValueType t = (i < sig.paramTypes.size()) ? sig.paramTypes[i] : argValues[i].type;
+        irCall += llvmType(t) + " " + argValues[i].operand;
+    }
+    irCall += ")";
+    emitInstruction(irCall);
+    pushValue({ callTmp, sig.returnType == ValueType::Invalid ? ValueType::I32 : sig.returnType });
 }
 
 string CodeGenerator::llvmType(ValueType type) const
@@ -386,7 +539,7 @@ void CodeGenerator::pushValue(CodegenValue value)
     _stack.push_back(std::move(value));
 }
 
-CodeGenerator::CodegenValue CodeGenerator::popValue()
+CodegenValue CodeGenerator::popValue()
 {
     if (_stack.empty())
         return { "0", ValueType::Invalid };
@@ -395,7 +548,7 @@ CodeGenerator::CodegenValue CodeGenerator::popValue()
     return value;
 }
 
-CodeGenerator::CodegenVariable& CodeGenerator::getVariable(SymbolID id)
+CodegenVariable& CodeGenerator::getVariable(SymbolID id)
 {
     auto it = _variables.find(id);
     if (it == _variables.end())
@@ -415,7 +568,7 @@ void CodeGenerator::ensureAllocated(CodegenVariable& var)
     }
 }
 
-CodeGenerator::CodegenValue CodeGenerator::ensureType(CodeGenerator::CodegenValue value, ValueType target)
+CodegenValue CodeGenerator::ensureType(CodegenValue value, ValueType target)
 {
     if (target == ValueType::Invalid || value.type == ValueType::Invalid)
         return { value.operand, ValueType::Invalid };
@@ -472,20 +625,17 @@ CodeGenerator::CodegenValue CodeGenerator::ensureType(CodeGenerator::CodegenValu
     return value;
 }
 
-void CodeGenerator::storeValue(CodeGenerator::CodegenVariable& var, const CodeGenerator::CodegenValue& value)
+void CodeGenerator::storeValue(CodegenVariable& var, const CodegenValue& value)
 {
     ensureAllocated(var);
     emitInstruction("store " + llvmType(var.type) + " " + value.operand + ", " + llvmType(var.type) + "* " + var.pointer);
     var.initialized = true;
 }
 
-void CodeGenerator::emitReturn(CodeGenerator::CodegenValue value)
+void CodeGenerator::emitReturn(CodegenValue value)
 {
-    value = ensureType(std::move(value), ValueType::I32);
-    std::string fmtPtr = nextTemp();
-    emitInstruction(fmtPtr + " = getelementptr [29 x i8], [29 x i8]* @fmtexit, i32 0, i32 0");
-    emitInstruction("call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + value.operand + ")");
-    emitInstruction("ret i32 " + value.operand);
+    value = ensureType(std::move(value), _currentFunctionReturnType);
+    emitInstruction("ret " + llvmType(_currentFunctionReturnType) + " " + value.operand);
     _currentBlockTerminated = true;
 }
 
