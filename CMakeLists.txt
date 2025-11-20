@@ -26,6 +26,9 @@ add_subdirectory ("src")
 include(CTest)
 if (BUILD_TESTING)
   enable_testing()
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  find_program(LLVM_LLC_EXECUTABLE NAMES llc)
+  find_program(LLVM_CLANG_EXECUTABLE NAMES clang)
 
   # Directory to write compiler outputs during tests
   set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test_outputs")
@@ -53,4 +56,33 @@ if (BUILD_TESTING)
     )
     set_tests_properties(fail_${TEST_NAME_WE} PROPERTIES WILL_FAIL TRUE)
   endforeach()
+
+  if (LLVM_LLC_EXECUTABLE AND LLVM_CLANG_EXECUTABLE)
+    file(GLOB E2E_TESTS "${CMAKE_CURRENT_SOURCE_DIR}/test/e2e/*.m8")
+    foreach(TEST_FILE IN LISTS E2E_TESTS)
+      get_filename_component(TEST_NAME_WE "${TEST_FILE}" NAME_WE)
+      set(TEST_NAME e2e_${TEST_NAME_WE})
+      set(EXPECT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/test/e2e/${TEST_NAME_WE}.out")
+      if (NOT EXISTS "${EXPECT_FILE}")
+        message(FATAL_ERROR "Missing expected output file for ${TEST_NAME}")
+      endif()
+      set(TEST_COMMAND
+        ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/scripts/run_e2e_test.py"
+        --compiler $<TARGET_FILE:M8-lang>
+        --source "${TEST_FILE}"
+        --work-dir "${TEST_OUTPUT_DIR}"
+        --test-name ${TEST_NAME}
+        --expected "${EXPECT_FILE}"
+        --llc "${LLVM_LLC_EXECUTABLE}"
+        --clang "${LLVM_CLANG_EXECUTABLE}"
+      )
+      set(INPUT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/test/e2e/${TEST_NAME_WE}.in")
+      if (EXISTS "${INPUT_FILE}")
+        list(APPEND TEST_COMMAND --input "${INPUT_FILE}")
+      endif()
+      add_test(NAME ${TEST_NAME} COMMAND ${TEST_COMMAND})
+    endforeach()
+  else()
+    message(WARNING "Skipping end-to-end tests because llc/clang were not found on PATH.")
+  endif()
 endif()
