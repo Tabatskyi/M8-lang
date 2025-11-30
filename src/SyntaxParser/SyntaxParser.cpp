@@ -31,19 +31,28 @@ std::unique_ptr<ProgramNode> SyntaxParser::parseProgram()
     if (atEnd())
         return std::make_unique<ProgramNode>(std::move(statements), 0);
 
+    skipNewlines();
+    while (match(TokenType::StmtSep))
+        skipNewlines();
+
     while (!atEnd())
     {
-        skipNewlines();
-        while (match(TokenType::StmtSep))
-            skipNewlines();
-        if (atEnd())
-            break;
         std::unique_ptr<StmtNode> currentStmt = parseStmt();
         if (!currentStmt) 
             return nullptr;
         statements.push_back(std::move(currentStmt));
+        skipNewlines();
         if (!match(TokenType::StmtSep))
             break;
+        skipNewlines();
+        if (const Token* next = peek())
+        {
+            if (next->type == TokenType::StmtSep)
+            {
+                addError("Unexpected empty statement between separators");
+                return nullptr;
+            }
+        }
     }
 
     skipNewlines();
@@ -183,6 +192,12 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
         skipNewlines();
     }
 
+    if (bodyStatements.empty())
+    {
+        addError("Function body must contain at least one statement");
+        return nullptr;
+    }
+
     auto body = parseBlock(std::move(bodyStatements), allocateScopeId());
 
     return std::make_unique<FunctionNode>(std::move(name), std::move(params), returnType, std::move(body), body->scopeId(), isMember ? masterStruct : std::string{}, isTemplate);
@@ -222,11 +237,22 @@ std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
             TypeDesc fieldType = parseTypeDesc();
             fields.push_back(StructDeclNode::Field{ fieldType, fieldName, true });
             
-            if (match(TokenType::StmtSep))
+            const Token* sepToken = peek();
+            if (sepToken && sepToken->type == TokenType::StmtSep)
             {
-                if (peek() && (peek()->type == TokenType::Function || peek()->type == TokenType::Method))
+                const Token* afterSep = peek(1);
+                if (afterSep && (afterSep->type == TokenType::Function || afterSep->type == TokenType::Method))
                 {
+                    eat();
                     methodsPending = true;
+                    break;
+                }
+                else if (afterSep && afterSep->type == TokenType::Identifier)
+                {
+                    eat(); 
+                }
+                else
+                {
                     break;
                 }
             }
@@ -237,7 +263,18 @@ std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
         }
     }
 
-    if (methodsPending || match(TokenType::StmtSep))
+    bool hasSepBeforeMethods = methodsPending;
+    if (!hasSepBeforeMethods && peek() && peek()->type == TokenType::StmtSep)
+    {
+        const Token* afterSep = peek(1);
+        if (afterSep && (afterSep->type == TokenType::Function || afterSep->type == TokenType::Method))
+        {
+            eat(); 
+            hasSepBeforeMethods = true;
+        }
+    }
+    
+    if (hasSepBeforeMethods)
     {
         while (peek() && (peek()->type == TokenType::Function || peek()->type == TokenType::Method))
         {
@@ -245,8 +282,24 @@ std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
             if (!method)
                 return nullptr;
             methods.push_back(std::move(method));
-            if (!match(TokenType::StmtSep))
+            
+            const Token* sepToken = peek();
+            if (sepToken && sepToken->type == TokenType::StmtSep)
+            {
+                const Token* afterSep = peek(1);
+                if (afterSep && (afterSep->type == TokenType::Function || afterSep->type == TokenType::Method))
+                {
+                    eat();
+                }
+                else
+                {
+                    break;
+                }
+            }
+            else
+            {
                 break;
+            }
         }
     }
 
