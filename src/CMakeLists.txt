@@ -6,6 +6,8 @@
 add_executable (M8-lang 
     "Compiler/M8-lang.cpp" 
     "Compiler/M8-lang.hpp" 
+    "Compiler/Optimizer.cpp"
+    "Compiler/Optimizer.hpp"
     "SyntaxParser/SyntaxParser.hpp" 
     "SyntaxParser/SyntaxParser.cpp" 
     "General/Token.hpp" 

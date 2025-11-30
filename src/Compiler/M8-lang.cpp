@@ -55,6 +55,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    Optimizer optimizer;
+    optimizer.run(*program, semantic);
+
     IRContext ctx;
     ctx.ir << "declare i32 @printf(i8*, ...)\n";
     ctx.ir << "declare i32 @scanf(i8*, ...)\n";

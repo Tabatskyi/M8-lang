@@ -32,6 +32,11 @@ const std::vector<std::unique_ptr<ExprNode>>& DeclNode::initializers() const
     return _initializers;
 }
 
+std::vector<std::unique_ptr<ExprNode>>& DeclNode::initializers()
+{
+    return _initializers;
+}
+
 SymbolID DeclNode::symbolId() const
 {
     return _symbolId;

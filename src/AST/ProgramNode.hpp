@@ -11,6 +11,7 @@ public:
 	explicit ProgramNode(StmtList statements, size_t scopeId = 0);
 
 	const StmtList& statements() const;
+	StmtList& statements();
 	size_t scopeId() const;
     StmtNode* appendStatement(std::unique_ptr<StmtNode> stmt);
 

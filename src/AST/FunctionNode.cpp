@@ -23,6 +23,11 @@ const BlockNode* FunctionNode::body() const
     return _body.get();
 }
 
+BlockNode* FunctionNode::body()
+{
+    return _body.get();
+}
+
 size_t FunctionNode::scopeId() const
 {
     return _scopeId;

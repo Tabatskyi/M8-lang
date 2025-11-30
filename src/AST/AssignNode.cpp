@@ -15,6 +15,16 @@ const ExprNode* AssignNode::value() const
     return _value.get();
 }
 
+ExprNode* AssignNode::value()
+{
+    return _value.get();
+}
+
+void AssignNode::setValue(std::unique_ptr<ExprNode> value)
+{
+    _value = std::move(value);
+}
+
 SymbolID AssignNode::symbolId() const
 {
     return _symbolId;

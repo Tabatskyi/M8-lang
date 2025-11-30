@@ -11,6 +11,7 @@ public:
 	BlockNode(StmtList statements, size_t scopeId);
 
 	const StmtList& statements() const;
+	StmtList& statements();
 	size_t scopeId() const;
 
 	void accept(ASTVisitor& visitor) const override;

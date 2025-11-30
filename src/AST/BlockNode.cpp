@@ -8,6 +8,11 @@ const BlockNode::StmtList& BlockNode::statements() const
     return _statements;
 }
 
+BlockNode::StmtList& BlockNode::statements()
+{
+    return _statements;
+}
+
 size_t BlockNode::scopeId() const
 {
     return _scopeId;

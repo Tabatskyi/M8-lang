@@ -8,6 +8,11 @@ const ProgramNode::StmtList& ProgramNode::statements() const
     return _statements;
 }
 
+ProgramNode::StmtList& ProgramNode::statements()
+{
+    return _statements;
+}
+
 size_t ProgramNode::scopeId() const
 {
     return _scopeId;

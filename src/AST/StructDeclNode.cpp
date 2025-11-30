@@ -18,6 +18,11 @@ const std::vector<std::unique_ptr<FunctionNode>>& StructDeclNode::functions() co
     return _functions;
 }
 
+std::vector<std::unique_ptr<FunctionNode>>& StructDeclNode::functions()
+{
+    return _functions;
+}
+
 void StructDeclNode::accept(ASTVisitor& visitor) const
 {
     visitor.visitStructDecl(*this);

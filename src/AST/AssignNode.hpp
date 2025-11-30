@@ -12,6 +12,8 @@ public:
 
 	const std::string& identifier() const;
 	const ExprNode* value() const;
+	ExprNode* value();
+	void setValue(std::unique_ptr<ExprNode> value);
 	SymbolID symbolId() const;
 	void setSymbolId(SymbolID id) const;
 

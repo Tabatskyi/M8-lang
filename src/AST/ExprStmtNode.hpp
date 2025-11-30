@@ -11,6 +11,8 @@ public:
     explicit ExprStmtNode(std::unique_ptr<ExprNode> expr);
 
     const ExprNode* expr() const;
+    ExprNode* expr();
+    void setExpr(std::unique_ptr<ExprNode> expr);
 
     void accept(ASTVisitor& visitor) const override;
 
