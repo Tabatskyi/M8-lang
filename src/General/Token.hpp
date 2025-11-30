@@ -41,6 +41,7 @@ enum class TokenType
     // Grouping
     LParen, // 'ᚮ'
     RParen, // 'ᚭ'
+    Dot,    // '.'
 
     // Logical ops
     And, // 'ᛤ'

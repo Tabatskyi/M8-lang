@@ -14,14 +14,6 @@ enum class ValueType
 using SymbolID = size_t;
 constexpr SymbolID InvalidSymbolID = static_cast<SymbolID>(-1);
 
-struct VariableInfo
-{
-    ValueType type = ValueType::Invalid;
-    bool isMutable = false;
-    std::string name;
-    size_t scopeId = 0;
-};
-
 inline bool isNumeric(ValueType type)
 {
     return type == ValueType::I32 || type == ValueType::I64;

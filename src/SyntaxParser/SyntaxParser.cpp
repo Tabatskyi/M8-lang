@@ -6,6 +6,7 @@
 #include "../AST/ReturnNode.hpp"
 #include "../AST/DeclNode.hpp"
 #include "../AST/AssignNode.hpp"
+#include "../AST/AssignFieldNode.hpp"
 #include "../AST/IfNode.hpp"
 #include "../AST/BinaryOpNode.hpp"
 #include "../AST/UnaryOpNode.hpp"
@@ -16,6 +17,7 @@
 #include "../AST/StructDecNode.hpp"
 #include "../AST/FunctionCallNode.hpp"
 #include "../AST/MemberFunctionCallNode.hpp"
+#include "../AST/FieldAccessNode.hpp"
 
 SyntaxParser::SyntaxParser(std::vector<Token> tokens): _tokens(std::move(tokens)) {}
 
@@ -100,12 +102,26 @@ std::unique_ptr<StmtNode> SyntaxParser::parseStmt()
 
 std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& masterStruct)
 {
-    bool isMethod = match(TokenType::Method);
-    if (!isMethod && !match(TokenType::Function))
+    bool isMethodKeyword = match(TokenType::Method);
+    bool isFunctionKeyword = false;
+    if (!isMethodKeyword)
+        isFunctionKeyword = match(TokenType::Function);
+    else
+        isFunctionKeyword = true;
+
+    if (!isMethodKeyword && !isFunctionKeyword)
     {
         addError("Expected function (ᚠ) or method (ᛃ) declaration keyword");
         return nullptr;
     }
+
+    if (isMethodKeyword && masterStruct.empty())
+    {
+        addError("Method declaration is only allowed inside a struct body");
+        return nullptr;
+    }
+
+    bool isMember = isMethodKeyword || !masterStruct.empty();
 
     const Token* identTok = peek();
     if (!identTok || identTok->type != TokenType::Identifier)
@@ -121,6 +137,9 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
         return nullptr;
 
     std::vector<FunctionNode::Param> params;
+    if (isMember)
+        params.push_back(FunctionNode::Param{ TypeDesc::Struct(masterStruct), std::string("_self") });
+
     if (peek() && peek()->type == TokenType::Identifier)
     {
         while (true)
@@ -155,7 +174,7 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
     
     auto body = parseBlock(std::move(bodyStatements), allocateScopeId());
 
-    return std::make_unique<FunctionNode>(std::move(name), std::move(params), returnType, std::move(body), body->scopeId(), isMethod ? masterStruct : std::string{});
+    return std::make_unique<FunctionNode>(std::move(name), std::move(params), returnType, std::move(body), body->scopeId(), isMember ? masterStruct : std::string{});
 }
 
 std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
@@ -345,7 +364,7 @@ TypeDesc SyntaxParser::parseTypeDesc()
     }
 }
 
-std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
+std::unique_ptr<StmtNode> SyntaxParser::parseAssign()
 {
     const Token* identTok = peek();
     if (!identTok || identTok->type != TokenType::Identifier)
@@ -356,6 +375,33 @@ std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
 
     std::string identifier = identTok->lexeme;
     eat();
+
+    std::vector<std::string> chain;
+    skipNewlines();
+    while (match(TokenType::Dot))
+    {
+        const Token* fieldTok = peek();
+        if (!fieldTok || fieldTok->type != TokenType::Identifier)
+        {
+            addError("Expected field name after '.' in assignment");
+            return nullptr;
+        }
+        chain.push_back(fieldTok->lexeme);
+        eat();
+        skipNewlines();
+    }
+
+    if (!chain.empty())
+    {
+        if (!expect(TokenType::Assign, "Expected '᛬' in field assignment"))
+            return nullptr;
+        skipNewlines();
+        std::unique_ptr<ExprNode> value = parseExpr();
+        if (!value)
+            return nullptr;
+        auto target = std::make_unique<FieldAccessNode>(std::move(identifier), std::move(chain));
+        return std::make_unique<AssignFieldNode>(std::move(target), std::move(value));
+    }
 
     if (match(TokenType::Assign))
     {
@@ -550,6 +596,81 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
                     }
                 }
                 return std::make_unique<FunctionCallNode>(std::move(name), std::move(args));
+            }
+
+            skipNewlines();
+            if (peek() && peek()->type == TokenType::Dot)
+            {
+                std::vector<std::string> chain;
+                while (match(TokenType::Dot))
+                {
+                    const Token* fieldTok = peek();
+                    if (!fieldTok || fieldTok->type != TokenType::Identifier)
+                    {
+                        addError("Expected field name after '.' in expression");
+                        return nullptr;
+                    }
+                    chain.push_back(fieldTok->lexeme);
+                    eat();
+                    skipNewlines();
+                }
+
+                if (!chain.empty() && peek() && peek()->type == TokenType::LParen)
+                {
+                    std::string fnName = chain.back();
+                    chain.pop_back();
+                    if (!expect(TokenType::LParen, "Expected '(' after member function name"))
+                        return nullptr;
+                    std::vector<std::unique_ptr<ExprNode>> args;
+                    if (!match(TokenType::RParen))
+                    {
+                        while (true)
+                        {
+                            std::unique_ptr<ExprNode> arg = parseExpr();
+                            if (!arg) return nullptr;
+                            args.push_back(std::move(arg));
+                            if (match(TokenType::RParen))
+                                break;
+                            if (!expect(TokenType::StmtSep, "Expected 'ᛵ' between member function arguments"))
+                                return nullptr;
+                        }
+                    }
+                    return std::make_unique<MemberFunctionCallNode>(std::move(name), std::move(chain), std::move(fnName), std::move(args));
+                }
+
+                if (peek() && peek()->type == TokenType::LParen)
+                {
+                    if (!chain.empty())
+                    {
+                        addError("Callable object syntax is only supported on variables, not nested fields");
+                        return nullptr;
+                    }
+                    if (!expect(TokenType::LParen, "Expected '(' after callable object"))
+                        return nullptr;
+                    std::vector<std::unique_ptr<ExprNode>> args;
+                    if (!match(TokenType::RParen))
+                    {
+                        while (true)
+                        {
+                            std::unique_ptr<ExprNode> arg = parseExpr();
+                            if (!arg) return nullptr;
+                            args.push_back(std::move(arg));
+                            if (match(TokenType::RParen))
+                                break;
+                            if (!expect(TokenType::StmtSep, "Expected 'ᛵ' between callable arguments"))
+                                return nullptr;
+                        }
+                    }
+                    return std::make_unique<MemberFunctionCallNode>(std::move(name), std::vector<std::string>{}, std::string("call"), std::move(args));
+                }
+
+                if (chain.empty())
+                {
+                    addError("Expected member function call or field name after '.'");
+                    return nullptr;
+                }
+
+                return std::make_unique<FieldAccessNode>(std::move(name), std::move(chain));
             }
 
             return std::make_unique<IDNode>(std::move(name));

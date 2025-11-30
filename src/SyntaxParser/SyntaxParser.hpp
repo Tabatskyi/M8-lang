@@ -27,7 +27,7 @@ public:
     std::unique_ptr<BlockNode> parseBlock(std::vector<std::unique_ptr<StmtNode>> statements, size_t scopeId);
 
     std::unique_ptr<DeclNode> parseDecl();
-    std::unique_ptr<AssignNode> parseAssign();
+    std::unique_ptr<StmtNode> parseAssign();
 
     std::unique_ptr<ExprNode> parseExpr();
     std::unique_ptr<ExprNode> parseEquality();

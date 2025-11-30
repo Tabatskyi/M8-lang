@@ -24,7 +24,7 @@ CodeGenerator::CodeGenerator(IRContext& ctx, const std::unordered_map<SymbolID, 
     for (const auto& [id, info] : symbols)
     {
         CodegenVariable var;
-        var.type = info.type;
+        var.type = (info.type.kind == TypeDesc::Kind::Builtin) ? info.type.builtin : ValueType::Invalid;
         var.isMutable = info.isMutable;
         var.pointer = "%" + info.name + "." + std::to_string(id);
         _variables.emplace(id, std::move(var));

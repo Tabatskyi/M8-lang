@@ -1,25 +1,21 @@
 #include "Semantics.hpp"
-#include "../General/Utility.hpp"
+
 #include <limits>
 #include <sstream>
+#include <utility>
 
-#include "../AST/ProgramNode.hpp"
-#include "../AST/BlockNode.hpp"
-#include "../AST/DeclNode.hpp"
-#include "../AST/AssignNode.hpp"
-#include "../AST/IfNode.hpp"
-#include "../AST/ReturnNode.hpp"
-#include "../AST/BinaryOpNode.hpp"
-#include "../AST/UnaryOpNode.hpp"
-#include "../AST/IDNode.hpp"
-#include "../AST/NumberNode.hpp"
-#include "../AST/BoolLiteralNode.hpp"
-#include "../AST/AssignFieldNode.hpp"
-#include "../AST/FieldAccessNode.hpp"
-#include "../AST/StructDecNode.hpp"
-#include "../AST/FunctionNode.hpp"
-#include "../AST/FunctionCallNode.hpp"
-#include "../AST/MemberFunctionCallNode.hpp"
+namespace
+{
+std::string formatMessage(const std::string& message, std::size_t line)
+{
+    if (!line)
+        return message;
+
+    std::ostringstream oss;
+    oss << message << " (line " << line << ')';
+    return oss.str();
+}
+}
 
 bool SemanticAnalyzer::analyze(const ProgramNode& program)
 {
@@ -28,11 +24,16 @@ bool SemanticAnalyzer::analyze(const ProgramNode& program)
     _symbols.clear();
     _scopeSymbols.clear();
     _scopeStack.clear();
+    _structs.clear();
+    _functions.clear();
     _nextSymbolId = 0;
+    _inFunction = false;
     _returnSeen = false;
+    _currentFunctionReturn = TypeDesc::Builtin(ValueType::Invalid);
+    _currentMemberMaster.clear();
 
+    registerBuiltins();
     program.accept(*this);
-
     return _errors.empty();
 }
 
@@ -58,69 +59,220 @@ void SemanticAnalyzer::visitBlock(const BlockNode& node)
     exitScope();
 }
 
-void SemanticAnalyzer::visitDecl(const DeclNode& node)
+void SemanticAnalyzer::visitStructDecl(const StructDeclNode& node)
 {
-    const std::string& name = node.identifier();
-    size_t scope = currentScopeId();
-    auto& scopeMap = _scopeSymbols[scope];
-    if (scopeMap.count(name))
+    if (_structs.count(node.name()))
     {
-        addError("Variable '" + name + "' redeclared");
+        addError("Struct '" + node.name() + "' redeclared", node);
         return;
     }
 
-    for (const auto& initPtr : node.initializers())
+    StructInfo info;
+    info.name = node.name();
+    for (const auto& field : node.fields())
+        info.fields.push_back(StructFieldInfo{ field.type, field.isMutable, field.name });
+
+    _structs.emplace(info.name, std::move(info));
+    for (const auto& method : node.functions())
     {
-        if (initPtr)
+        if (method)
+            method->accept(*this);
+    }
+}
+
+void SemanticAnalyzer::visitFunction(const FunctionNode& node)
+{
+    if (_functions.count(node.name()))
+    {
+        addError("Function '" + node.name() + "' redeclared", node);
+        return;
+    }
+
+    FunctionInfo info;
+    info.name = node.name();
+    info.returnType = node.returnType();
+    info.scopeId = node.scopeId();
+    info.isMember = node.isMember();
+    info.masterStruct = node.isMember() ? node.masterStruct() : std::string{};
+    info.isBuiltin = false;
+    for (const auto& param : node.params())
+        info.params.push_back(FunctionParamInfo{ param.type, param.name, InvalidSymbolID });
+    _functions.emplace(info.name, info);
+
+    enterScope(node.scopeId());
+    for (const auto& param : node.params())
+    {
+        auto& scopeMap = _scopeSymbols[currentScopeId()];
+        if (scopeMap.count(param.name))
         {
-            initPtr->accept(*this);
-            ValueType initType = initPtr->type();
-            if (node.declaredType().kind == TypeDesc::Kind::Builtin && node.declaredType().builtin != ValueType::Invalid)
+            addError("Parameter '" + param.name + "' redeclared", node);
+            continue;
+        }
+        SymbolID sid = _nextSymbolId++;
+        scopeMap.emplace(param.name, sid);
+        _symbols.emplace(sid, VariableInfo{ param.type, false, param.name, currentScopeId() });
+        const_cast<FunctionNode::Param&>(param).symbolId = sid;
+    }
+
+    bool previousInFunction = _inFunction;
+    bool previousReturnSeen = _returnSeen;
+    TypeDesc previousReturn = _currentFunctionReturn;
+    std::string previousMaster = _currentMemberMaster;
+
+    _inFunction = true;
+    _returnSeen = false;
+    _currentFunctionReturn = node.returnType();
+    _currentMemberMaster = node.isMember() ? node.masterStruct() : std::string{};
+
+    if (const BlockNode* body = node.body())
+        body->accept(*this);
+
+    if (!_returnSeen && node.returnType().kind == TypeDesc::Kind::Builtin && node.returnType().builtin != ValueType::Invalid)
+        addWarning("Function '" + node.name() + "' may not return a value", node);
+
+    _inFunction = previousInFunction;
+    _returnSeen = previousReturnSeen;
+    _currentFunctionReturn = previousReturn;
+    _currentMemberMaster = std::move(previousMaster);
+    exitScope();
+}
+
+void SemanticAnalyzer::visitDecl(const DeclNode& node)
+{
+    const std::string& name = node.identifier();
+    auto& scopeMap = _scopeSymbols[currentScopeId()];
+    if (scopeMap.count(name))
+    {
+        addError("Variable '" + name + "' redeclared", node);
+        return;
+    }
+
+    const ExprNode* initializer = nullptr;
+    if (node.hasInitializer() && !node.initializers().empty())
+    {
+        initializer = node.initializers().front().get();
+        if (initializer)
+            initializer->accept(*this);
+    }
+
+    TypeDesc resolvedType = node.declaredType();
+    if (resolvedType.kind == TypeDesc::Kind::Builtin && resolvedType.builtin != ValueType::Invalid)
+    {
+        if (initializer && !isAssignable(resolvedType.builtin, initializer->type()))
+            addError("Cannot initialize '" + name + "' with incompatible type", initializer);
+    }
+    else if (resolvedType.kind == TypeDesc::Kind::Struct)
+    {
+        if (!_structs.count(resolvedType.structName))
+            addError("Unknown struct type '" + resolvedType.structName + "'", node);
+        if (initializer)
+        {
+            const IDNode* id = dynamic_cast<const IDNode*>(initializer);
+            if (!id)
+                addError("Struct initializer must be an identifier", initializer);
+            else if (id->symbolId() == InvalidSymbolID)
+                addError("Use of undeclared variable in struct initializer", id);
+            else
             {
-                if (!isAssignable(node.declaredType().builtin, initType))
-                {
-                    addError("Cannot initialize '" + name + "' of type " + typeToString(node.declaredType().builtin) + " with value of type " + typeToString(initType));
-                }
+                const auto& src = _symbols.at(id->symbolId());
+                if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != resolvedType.structName)
+                    addError("Struct initializer type mismatch", initializer);
             }
         }
     }
+    else if (initializer)
+    {
+        resolvedType = TypeDesc::Builtin(initializer->type());
+    }
+
+    if (resolvedType.kind == TypeDesc::Kind::Builtin && resolvedType.builtin == ValueType::Invalid && initializer)
+        resolvedType = TypeDesc::Builtin(initializer->type());
 
     SymbolID symbolId = _nextSymbolId++;
     scopeMap.emplace(name, symbolId);
-    ValueType varType = ValueType::Invalid;
-    if (node.declaredType().kind == TypeDesc::Kind::Builtin)
-        varType = node.declaredType().builtin;
-    if (varType == ValueType::Invalid && !node.initializers().empty() && node.initializers().front())
-        varType = node.initializers().front()->type();
-    _symbols.emplace(symbolId, VariableInfo{ varType, node.isMutable(), name, scope });
+    _symbols.emplace(symbolId, VariableInfo{ resolvedType, node.isMutable(), name, currentScopeId() });
     node.setSymbolId(symbolId);
 }
 
 void SemanticAnalyzer::visitAssign(const AssignNode& node)
 {
     SymbolID symbolId = resolveSymbol(node.identifier());
-    if (symbolId == InvalidSymbolID)
+    const VariableInfo* targetVar = nullptr;
+    const StructFieldInfo* memberField = nullptr;
+
+    if (symbolId != InvalidSymbolID)
     {
-        addError("Assignment to undeclared variable '" + node.identifier() + "'");
-    }
-    else
-    {
-        const auto& info = _symbols[symbolId];
-        if (!info.isMutable)
-            addError("Variable '" + node.identifier() + "' is immutable");
+        targetVar = &_symbols.at(symbolId);
+        if (!targetVar->isMutable)
+            addError("Variable '" + node.identifier() + "' is immutable", node);
         const_cast<AssignNode&>(node).setSymbolId(symbolId);
     }
+    else if (_inFunction && !_currentMemberMaster.empty())
+    {
+        auto structIt = _structs.find(_currentMemberMaster);
+        if (structIt != _structs.end())
+        {
+            for (const auto& field : structIt->second.fields)
+            {
+                if (field.name == node.identifier())
+                {
+                    memberField = &field;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!targetVar && !memberField)
+        addError("Assignment to undeclared variable '" + node.identifier() + "'", node);
 
     if (const ExprNode* value = node.value())
     {
         value->accept(*this);
-        if (symbolId != InvalidSymbolID)
+        if (targetVar)
         {
-            const auto& info = _symbols[symbolId];
-            ValueType valueType = value->type();
-            if (!isAssignable(info.type, valueType))
+            if (targetVar->type.kind == TypeDesc::Kind::Builtin)
             {
-                addError("Cannot assign value of type " + typeToString(valueType) + " to variable '" + node.identifier() + "' of type " + typeToString(info.type));
+                if (!isAssignable(targetVar->type.builtin, value->type()))
+                    addError("Cannot assign incompatible type to variable '" + node.identifier() + "'", value);
+            }
+            else
+            {
+                const IDNode* id = dynamic_cast<const IDNode*>(value);
+                if (!id)
+                    addError("Struct assignment requires an identifier", value);
+                else if (id->symbolId() == InvalidSymbolID)
+                    addError("Use of undeclared variable in struct assignment", id);
+                else
+                {
+                    const auto& src = _symbols.at(id->symbolId());
+                    if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != targetVar->type.structName)
+                        addError("Struct assignment type mismatch", value);
+                }
+            }
+        }
+        else if (memberField)
+        {
+            if (!memberField->isMutable)
+                addError("Field '" + memberField->name + "' is immutable", node);
+            if (memberField->type.kind == TypeDesc::Kind::Builtin)
+            {
+                if (!isAssignable(memberField->type.builtin, value->type()))
+                    addError("Cannot assign incompatible type to field '" + memberField->name + "'", value);
+            }
+            else
+            {
+                const IDNode* id = dynamic_cast<const IDNode*>(value);
+                if (!id)
+                    addError("Struct field assignment requires an identifier", value);
+                else if (id->symbolId() == InvalidSymbolID)
+                    addError("Use of undeclared variable in struct assignment", id);
+                else
+                {
+                    const auto& src = _symbols.at(id->symbolId());
+                    if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != memberField->type.structName)
+                        addError("Struct assignment type mismatch", value);
+                }
             }
         }
     }
@@ -128,10 +280,45 @@ void SemanticAnalyzer::visitAssign(const AssignNode& node)
 
 void SemanticAnalyzer::visitAssignField(const AssignFieldNode& node)
 {
-    if (const FieldAccessNode* target = node.target())
-        target->accept(*this);
+    const FieldAccessNode* target = node.target();
+    if (!target)
+        return;
+
+    SymbolID baseId = resolveSymbol(target->base());
+    if (baseId == InvalidSymbolID)
+    {
+        addError("Assignment to undeclared variable '" + target->base() + "'", target);
+        return;
+    }
+
+    const_cast<FieldAccessNode&>(*target).setBaseSymbolId(baseId);
+    const VariableInfo& baseVar = _symbols.at(baseId);
+    TypeDesc fieldType = resolveFieldType(baseId, target->fieldChain(), target);
+    ensureFieldChainMutable(baseVar, target->fieldChain(), &node);
+
     if (const ExprNode* value = node.value())
+    {
         value->accept(*this);
+        if (fieldType.kind == TypeDesc::Kind::Builtin)
+        {
+            if (!isAssignable(fieldType.builtin, value->type()))
+                addError("Cannot assign incompatible type to field", value);
+        }
+        else
+        {
+            const IDNode* id = dynamic_cast<const IDNode*>(value);
+            if (!id)
+                addError("Struct field assignment requires an identifier", value);
+            else if (id->symbolId() == InvalidSymbolID)
+                addError("Use of undeclared variable in struct assignment", id);
+            else
+            {
+                const auto& src = _symbols.at(id->symbolId());
+                if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != fieldType.structName)
+                    addError("Struct field assignment type mismatch", value);
+            }
+        }
+    }
 }
 
 void SemanticAnalyzer::visitIf(const IfNode& node)
@@ -141,7 +328,7 @@ void SemanticAnalyzer::visitIf(const IfNode& node)
         cond->accept(*this);
         ValueType condType = cond->type();
         if (condType != ValueType::Bool && !isNumeric(condType))
-            addError("Condition of if statement must be bool or integer (0=false, nonzero=true)");
+            addError("Condition of if statement must be bool or integer", node);
     }
 
     if (const BlockNode* thenBlock = node.thenBlock())
@@ -154,12 +341,38 @@ void SemanticAnalyzer::visitReturn(const ReturnNode& node)
 {
     _returnSeen = true;
     if (!node.expr())
+    {
+        addError("Return statement requires an expression", node);
         return;
+    }
 
     node.expr()->accept(*this);
-    ValueType type = node.expr()->type();
-    if (!canConvertToI32(type))
-        addError("Return type must be convertible to i32, got " + typeToString(type));
+    if (_inFunction)
+    {
+        if (_currentFunctionReturn.kind == TypeDesc::Kind::Builtin)
+        {
+            if (!isAssignable(_currentFunctionReturn.builtin, node.expr()->type()))
+                addError("Return type mismatch", node);
+        }
+        else
+        {
+            const IDNode* id = dynamic_cast<const IDNode*>(node.expr());
+            if (!id)
+                addError("Struct return value must be an identifier", node);
+            else if (id->symbolId() == InvalidSymbolID)
+                addError("Return references undeclared variable", id);
+            else
+            {
+                const auto& src = _symbols.at(id->symbolId());
+                if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != _currentFunctionReturn.structName)
+                    addError("Return struct type mismatch", node);
+            }
+        }
+    }
+    else if (!canConvertToI32(node.expr()->type()))
+    {
+        addError("Return type must be convertible to i32", node);
+    }
 }
 
 void SemanticAnalyzer::visitBinaryOp(const BinaryOpNode& node)
@@ -186,23 +399,21 @@ void SemanticAnalyzer::visitBinaryOp(const BinaryOpNode& node)
     case BinaryOpNode::Operator::Sub:
     case BinaryOpNode::Operator::Mul:
     case BinaryOpNode::Operator::Div:
-    {
         if (!isNumeric(leftType) || !isNumeric(rightType))
         {
-            addError("Arithmetic operators require numeric operands");
+            addError("Arithmetic operators require numeric operands", node);
             node.setType(ValueType::Invalid);
             return;
         }
         node.setType(widerType(leftType, rightType));
         return;
-    }
     case BinaryOpNode::Operator::Equal:
     case BinaryOpNode::Operator::NotEqual:
     {
         ValueType operandType = comparisonOperandType(leftType, rightType);
         if (operandType == ValueType::Invalid)
         {
-            addError("Comparison requires compatible operand types");
+            addError("Comparison requires compatible operand types", node);
             node.setType(ValueType::Invalid);
             return;
         }
@@ -223,7 +434,7 @@ void SemanticAnalyzer::visitUnaryOp(const UnaryOpNode& node)
     ValueType operandType = operand ? operand->type() : ValueType::Invalid;
     if (operandType != ValueType::Bool && !isNumeric(operandType))
     {
-        addError("Logical not operator requires bool or integer operand");
+        addError("Logical not operator requires bool or integer operand", node);
         node.setType(ValueType::Invalid);
         return;
     }
@@ -236,12 +447,36 @@ void SemanticAnalyzer::visitID(const IDNode& node)
     SymbolID symbolId = resolveSymbol(node.name());
     if (symbolId == InvalidSymbolID)
     {
-        addError("Use of undeclared variable '" + node.name() + "'");
-        node.setType(ValueType::Invalid);
+        if (_inFunction && !_currentMemberMaster.empty())
+        {
+            auto structIt = _structs.find(_currentMemberMaster);
+            if (structIt != _structs.end())
+            {
+                for (const auto& field : structIt->second.fields)
+                {
+                    if (field.name == node.name())
+                    {
+                        if (field.type.kind == TypeDesc::Kind::Builtin)
+                            const_cast<IDNode&>(node).setType(field.type.builtin);
+                        else
+                            const_cast<IDNode&>(node).setType(ValueType::Invalid);
+                        return;
+                    }
+                }
+            }
+        }
+
+        addError("Use of undeclared variable '" + node.name() + "'", node);
+        const_cast<IDNode&>(node).setType(ValueType::Invalid);
         return;
     }
+
+    const VariableInfo& info = _symbols.at(symbolId);
     const_cast<IDNode&>(node).setSymbolId(symbolId);
-    const_cast<IDNode&>(node).setType(_symbols.at(symbolId).type);
+    if (info.type.kind == TypeDesc::Kind::Builtin)
+        const_cast<IDNode&>(node).setType(info.type.builtin);
+    else
+        const_cast<IDNode&>(node).setType(ValueType::Invalid);
 }
 
 void SemanticAnalyzer::visitNumber(const NumberNode& node)
@@ -258,61 +493,64 @@ void SemanticAnalyzer::visitBoolLiteral(const BoolLiteralNode& node)
     const_cast<BoolLiteralNode&>(node).setType(ValueType::Bool);
 }
 
-void SemanticAnalyzer::visitStructDecl(const StructDeclNode& node)
-{
-    for (const auto& field : node.fields())
-    {
-        if (field.type.kind == TypeDesc::Kind::Builtin && field.type.builtin == ValueType::Invalid)
-            addWarning("Field '" + field.name + "' has invalid type");
-    }
-    for (const auto& funcPtr : node.functions())
-    {
-        if (funcPtr)
-            funcPtr->accept(*this);
-    }
-}
-
-void SemanticAnalyzer::visitFunction(const FunctionNode& node)
-{
-    enterScope(node.scopeId());
-
-    for (const auto& param : node.params())
-    {
-        SymbolID sid = _nextSymbolId++;
-        _scopeSymbols[currentScopeId()][param.name] = sid;
-        _symbols.emplace(sid, VariableInfo{ param.type.kind == TypeDesc::Kind::Builtin ? param.type.builtin : ValueType::Invalid, true, param.name, currentScopeId() });
-        const_cast<FunctionNode::Param&>(param).symbolId = sid;
-    }
-    if (const BlockNode* body = node.body())
-        body->accept(*this);
-    exitScope();
-    if (!_returnSeen && (node.returnType().kind == TypeDesc::Kind::Builtin && node.returnType().builtin != ValueType::Invalid))
-        addWarning("Function '" + node.name() + "' may not return a value");
-    _returnSeen = false; 
-}
-
 void SemanticAnalyzer::visitFieldAccess(const FieldAccessNode& node)
 {
     SymbolID baseId = resolveSymbol(node.base());
     if (baseId == InvalidSymbolID)
     {
-        addError("Field access of undeclared base '" + node.base() + "'");
+        addError("Use of undeclared variable '" + node.base() + "'", node);
         return;
     }
+
     const_cast<FieldAccessNode&>(node).setBaseSymbolId(baseId);
+    TypeDesc fieldType = resolveFieldType(baseId, node.fieldChain(), &node);
+    if (fieldType.kind == TypeDesc::Kind::Builtin)
+        const_cast<FieldAccessNode&>(node).setType(fieldType.builtin);
+    else
+        const_cast<FieldAccessNode&>(node).setType(ValueType::Invalid);
 }
 
 void SemanticAnalyzer::visitFunctionCall(const FunctionCallNode& node)
 {
-    for (const auto& arg : node.args())
+    auto funcIt = _functions.find(node.name());
+    if (funcIt == _functions.end())
     {
-        if (arg)
-            arg->accept(*this);
+        SymbolID sid = resolveSymbol(node.name());
+        if (sid != InvalidSymbolID)
+        {
+            const auto& var = _symbols.at(sid);
+            if (var.type.kind == TypeDesc::Kind::Struct)
+            {
+                const FunctionInfo* callInfo = findMemberFunction("call", var.type.structName);
+                if (callInfo)
+                {
+                    const_cast<FunctionCallNode&>(node).setSymbolId(sid);
+                    validateCallArguments(node.args(), *callInfo, 1, "Use of undeclared variable in callable object");
+                    if (callInfo->returnType.kind == TypeDesc::Kind::Builtin)
+                        const_cast<FunctionCallNode&>(node).setType(callInfo->returnType.builtin);
+                    else
+                        const_cast<FunctionCallNode&>(node).setType(ValueType::Invalid);
+                    return;
+                }
+            }
+        }
+
+        addError("Call to undeclared function '" + node.name() + "'", node);
+        return;
     }
-    if (node.name() == "__builtin_read" || node.name() == "__builtin_write")
+
+    const FunctionInfo& func = funcIt->second;
+    if (node.args().size() != func.params.size())
     {
-        const_cast<FunctionCallNode&>(node).setType(ValueType::I32);
+        addError("Function '" + node.name() + "' called with wrong number of arguments", node);
+        return;
     }
+
+    validateCallArguments(node.args(), func, 0, "Use of undeclared variable in function call");
+    if (func.returnType.kind == TypeDesc::Kind::Builtin)
+        const_cast<FunctionCallNode&>(node).setType(func.returnType.builtin);
+    else
+        const_cast<FunctionCallNode&>(node).setType(ValueType::Invalid);
 }
 
 void SemanticAnalyzer::visitMemberFunctionCall(const MemberFunctionCallNode& node)
@@ -320,17 +558,43 @@ void SemanticAnalyzer::visitMemberFunctionCall(const MemberFunctionCallNode& nod
     SymbolID baseId = resolveSymbol(node.base());
     if (baseId == InvalidSymbolID)
     {
-        addError("Member function call on undeclared base '" + node.base() + "'");
+        addError("Use of undeclared variable '" + node.base() + "'", node);
+        return;
     }
+
+    const_cast<MemberFunctionCallNode&>(node).setBaseSymbolId(baseId);
+    TypeDesc masterType = resolveFieldType(baseId, node.fieldChain(), &node);
+    if (masterType.kind != TypeDesc::Kind::Struct)
+    {
+        addError("Member function base must be a struct", node);
+        return;
+    }
+
+    const FunctionInfo* funcInfo = findMemberFunction(node.funcName(), masterType.structName);
+    if (!funcInfo)
+    {
+        addError("Call to undeclared member function '" + node.funcName() + "'", node);
+        return;
+    }
+
+    if (funcInfo->params.empty())
+    {
+        addError("Corrupt member function metadata", node);
+        return;
+    }
+
+    size_t expectedArgs = funcInfo->params.size() - 1;
+    if (node.args().size() != expectedArgs)
+    {
+        addError("Member function '" + node.funcName() + "' called with wrong number of arguments", node);
+        return;
+    }
+
+    validateCallArguments(node.args(), *funcInfo, 1, "Use of undeclared variable in member function call");
+    if (funcInfo->returnType.kind == TypeDesc::Kind::Builtin)
+        const_cast<MemberFunctionCallNode&>(node).setType(funcInfo->returnType.builtin);
     else
-    {
-        const_cast<MemberFunctionCallNode&>(node).setBaseSymbolId(baseId);
-    }
-    for (const auto& arg : node.args())
-    {
-        if (arg)
-            arg->accept(*this);
-    }
+        const_cast<MemberFunctionCallNode&>(node).setType(ValueType::Invalid);
 }
 
 void SemanticAnalyzer::enterScope(size_t scopeId)
@@ -347,7 +611,7 @@ void SemanticAnalyzer::exitScope()
 
 size_t SemanticAnalyzer::currentScopeId() const
 {
-    return _scopeStack.empty() ? 0 : _scopeStack.back();
+    return _scopeStack.empty() ? 0u : _scopeStack.back();
 }
 
 SymbolID SemanticAnalyzer::resolveSymbol(const std::string& name) const
@@ -370,7 +634,209 @@ void SemanticAnalyzer::addError(const std::string& message)
     _errors.push_back(message);
 }
 
+void SemanticAnalyzer::addError(const std::string& message, const ASTNode& node)
+{
+    _errors.push_back(formatMessage(message, node.line()));
+}
+
+void SemanticAnalyzer::addError(const std::string& message, const ASTNode* node)
+{
+    _errors.push_back(formatMessage(message, node ? node->line() : 0));
+}
+
 void SemanticAnalyzer::addWarning(const std::string& message)
 {
     _warnings.push_back(message);
+}
+
+void SemanticAnalyzer::addWarning(const std::string& message, const ASTNode& node)
+{
+    _warnings.push_back(formatMessage(message, node.line()));
+}
+
+void SemanticAnalyzer::addWarning(const std::string& message, const ASTNode* node)
+{
+    _warnings.push_back(formatMessage(message, node ? node->line() : 0));
+}
+
+void SemanticAnalyzer::validateCallArguments(const std::vector<std::unique_ptr<ExprNode>>& args,
+                                             const FunctionInfo& funcInfo,
+                                             size_t paramStartIndex,
+                                             const std::string& undeclaredVarMessage)
+{
+    for (size_t i = 0; i < args.size(); ++i)
+    {
+        const ExprNode* arg = args[i] ? args[i].get() : nullptr;
+        if (!arg)
+            continue;
+
+        arg->accept(*this);
+        if (paramStartIndex + i >= funcInfo.params.size())
+        {
+            addError("Argument type mismatch at position " + std::to_string(i), arg);
+            continue;
+        }
+
+        const auto& param = funcInfo.params[paramStartIndex + i];
+        if (param.type.kind == TypeDesc::Kind::Builtin)
+        {
+            if (!isAssignable(param.type.builtin, arg->type()))
+                addError("Argument type mismatch at position " + std::to_string(i), arg);
+        }
+        else
+        {
+            const IDNode* id = dynamic_cast<const IDNode*>(arg);
+            if (!id)
+            {
+                addError("Struct argument must be an identifier of type '" + param.type.structName + "'", arg);
+            }
+            else if (id->symbolId() == InvalidSymbolID)
+            {
+                addError(undeclaredVarMessage, id);
+            }
+            else
+            {
+                auto varIt = _symbols.find(id->symbolId());
+                if (varIt == _symbols.end() || varIt->second.type.kind != TypeDesc::Kind::Struct || varIt->second.type.structName != param.type.structName)
+                    addError("Struct argument type mismatch", id);
+            }
+        }
+    }
+}
+
+const FunctionInfo* SemanticAnalyzer::findMemberFunction(const std::string& funcName, const std::string& structName) const
+{
+    auto it = _functions.find(funcName);
+    if (it != _functions.end() && it->second.isMember && it->second.masterStruct == structName)
+        return &it->second;
+
+    for (const auto& entry : _functions)
+    {
+        if (entry.second.name == funcName && entry.second.isMember && entry.second.masterStruct == structName)
+            return &entry.second;
+    }
+    return nullptr;
+}
+
+TypeDesc SemanticAnalyzer::resolveFieldType(SymbolID baseId,
+                                            const std::vector<std::string>& fieldChain,
+                                            const ASTNode* reporter)
+{
+    auto baseIt = _symbols.find(baseId);
+    if (baseIt == _symbols.end())
+    {
+        addError("Unknown symbol reference", reporter);
+        return TypeDesc::Builtin(ValueType::Invalid);
+    }
+
+    if (baseIt->second.type.kind != TypeDesc::Kind::Struct)
+    {
+        addError("Variable '" + baseIt->second.name + "' is not a struct", reporter);
+        return TypeDesc::Builtin(ValueType::Invalid);
+    }
+
+    TypeDesc current = baseIt->second.type;
+    if (fieldChain.empty())
+        return current;
+
+    for (const std::string& fieldName : fieldChain)
+    {
+        auto structIt = _structs.find(current.structName);
+        if (structIt == _structs.end())
+        {
+            addError("Unknown struct type '" + current.structName + "'", reporter);
+            return TypeDesc::Builtin(ValueType::Invalid);
+        }
+
+        const StructFieldInfo* match = nullptr;
+        for (const auto& field : structIt->second.fields)
+        {
+            if (field.name == fieldName)
+            {
+                match = &field;
+                break;
+            }
+        }
+
+        if (!match)
+        {
+            addError("Struct '" + structIt->second.name + "' has no field '" + fieldName + "'", reporter);
+            return TypeDesc::Builtin(ValueType::Invalid);
+        }
+
+        current = match->type;
+    }
+
+    return current;
+}
+
+bool SemanticAnalyzer::ensureFieldChainMutable(const VariableInfo& baseVar,
+                                               const std::vector<std::string>& fieldChain,
+                                               const ASTNode* reporter)
+{
+    if (!baseVar.isMutable)
+    {
+        addError("Variable '" + baseVar.name + "' is immutable", reporter);
+        return false;
+    }
+
+    TypeDesc current = baseVar.type;
+    const StructFieldInfo* match = nullptr;
+    for (const std::string& fieldName : fieldChain)
+    {
+        if (current.kind != TypeDesc::Kind::Struct)
+        {
+            addError("Cannot access field '" + fieldName + "' on non-struct value", reporter);
+            return false;
+        }
+
+        auto structIt = _structs.find(current.structName);
+        if (structIt == _structs.end())
+        {
+            addError("Unknown struct type '" + current.structName + "'", reporter);
+            return false;
+        }
+
+        match = nullptr;
+        for (const auto& field : structIt->second.fields)
+        {
+            if (field.name == fieldName)
+            {
+                match = &field;
+                break;
+            }
+        }
+
+        if (!match)
+        {
+            addError("Struct '" + structIt->second.name + "' has no field '" + fieldName + "'", reporter);
+            return false;
+        }
+
+        if (!match->isMutable)
+        {
+            addError("Field '" + fieldName + "' is immutable", reporter);
+            return false;
+        }
+
+        current = match->type;
+    }
+
+    return true;
+}
+
+void SemanticAnalyzer::registerBuiltins()
+{
+    FunctionInfo read;
+    read.name = "__builtin_read";
+    read.returnType = TypeDesc::Builtin(ValueType::I32);
+    read.isBuiltin = true;
+    _functions.emplace(read.name, std::move(read));
+
+    FunctionInfo write;
+    write.name = "__builtin_write";
+    write.returnType = TypeDesc::Builtin(ValueType::I32);
+    write.isBuiltin = true;
+    write.params.push_back(FunctionParamInfo{ TypeDesc::Builtin(ValueType::I32), "value", InvalidSymbolID });
+    _functions.emplace(write.name, std::move(write));
 }
