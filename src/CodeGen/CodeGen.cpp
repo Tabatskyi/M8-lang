@@ -47,17 +47,22 @@ std::string encodeStringLiteral(const std::string& value)
 }
 
 CodeGenerator::CodeGenerator(IRContext& ctx,
-							 const std::unordered_map<SymbolID, VariableInfo>& symbols,
-							 const StructTable& structs,
-							 const FunctionTable& functions)
-	: _ctx(ctx), _structs(structs), _functions(functions)
+				 const std::unordered_map<SymbolID, VariableInfo>& symbols,
+				 const StructTable& structs,
+				 const FunctionTable& functions,
+				 size_t globalScopeId)
+	: _ctx(ctx), _structs(structs), _functions(functions), _globalScopeId(globalScopeId)
 {
 	for (const auto& [id, info] : symbols)
 	{
 		CodegenVariable var;
 		var.type = info.type;
 		var.isMutable = info.isMutable;
-		var.pointer = "%" + info.name + "." + std::to_string(id);
+		var.isGlobal = (info.scopeId == _globalScopeId);
+		if (var.isGlobal)
+			var.pointer = "@" + info.name + "." + std::to_string(id);
+		else
+			var.pointer = "%" + info.name + "." + std::to_string(id);
 		_variables.emplace(id, std::move(var));
 	}
 }
@@ -66,6 +71,7 @@ void CodeGenerator::emitTopLevel(const ProgramNode& program)
 {
 	_emittingTopLevel = true;
 	_emittedStructs.clear();
+	emitGlobalDeclarations();
 
 	for (const auto& stmt : program.statements())
 	{
@@ -73,14 +79,116 @@ void CodeGenerator::emitTopLevel(const ProgramNode& program)
 			visitStructDecl(*structDecl);
 	}
 
+	emitGlobalInit();
+
 	for (const auto& stmt : program.statements())
 	{
 		if (const auto* func = dynamic_cast<const FunctionNode*>(stmt.get()))
+		{
+			if (func->isTemplate())
+				continue;
 			visitFunction(*func);
+		}
 	}
 
 	_emittingTopLevel = false;
 	_currentBlockTerminated = false;
+}
+
+void CodeGenerator::planGlobalInit(const ProgramNode& program)
+{
+	_globalInitStmts.clear();
+	for (const auto& stmt : program.statements())
+	{
+		if (!stmt)
+			continue;
+		if (const auto* decl = dynamic_cast<const DeclNode*>(stmt.get()))
+		{
+			SymbolID sid = decl->symbolId();
+			if (sid == InvalidSymbolID)
+				continue;
+			auto it = _variables.find(sid);
+			if (it == _variables.end() || !it->second.isGlobal)
+				continue;
+			_globalInitStmts.push_back(decl);
+			continue;
+		}
+		if (const auto* assign = dynamic_cast<const AssignNode*>(stmt.get()))
+		{
+			SymbolID sid = assign->symbolId();
+			if (sid == InvalidSymbolID)
+				continue;
+			auto it = _variables.find(sid);
+			if (it == _variables.end() || !it->second.isGlobal)
+				continue;
+			_globalInitStmts.push_back(assign);
+			continue;
+		}
+		if (const auto* assignField = dynamic_cast<const AssignFieldNode*>(stmt.get()))
+		{
+			if (!assignField->target())
+				continue;
+			SymbolID sid = assignField->target()->baseSymbolId();
+			if (sid == InvalidSymbolID)
+				continue;
+			auto it = _variables.find(sid);
+			if (it == _variables.end() || !it->second.isGlobal)
+				continue;
+			_globalInitStmts.push_back(assignField);
+		}
+	}
+	_hasGlobalInit = !_globalInitStmts.empty();
+}
+
+void CodeGenerator::emitGlobalInit()
+{
+	if (!_hasGlobalInit || _globalInitStmts.empty())
+		return;
+	emitGlobalDeclarations();
+	bool savedInFunction = _inFunction;
+	TypeDesc savedReturn = _functionReturnType;
+	bool savedTerminated = _currentBlockTerminated;
+
+	_ctx.ir << "define void @" << _globalInitName << "() {\n";
+	_inFunction = true;
+	_functionReturnType = TypeDesc::Builtin(ValueType::I32);
+	_currentBlockTerminated = false;
+	for (const StmtNode* decl : _globalInitStmts)
+	{
+		if (_currentBlockTerminated)
+			break;
+		decl->accept(*this);
+	}
+	if (!_currentBlockTerminated)
+		emitInstruction("ret void");
+	_ctx.ir << "}\n";
+
+	_inFunction = savedInFunction;
+	_functionReturnType = savedReturn;
+	_currentBlockTerminated = savedTerminated;
+}
+
+void CodeGenerator::emitGlobalDeclarations()
+{
+	if (_globalsDeclared)
+		return;
+	bool emitted = false;
+	for (auto& [_, var] : _variables)
+	{
+		if (!var.isGlobal || var.pointer.empty() || var.allocated)
+			continue;
+		if (var.type.kind == TypeDesc::Kind::Builtin)
+			_ctx.ir << var.pointer << " = global " << llvmType(var.type.builtin) << " " << zeroLiteral(var.type.builtin) << "\n";
+		else if (var.type.kind == TypeDesc::Kind::Struct)
+			_ctx.ir << var.pointer << " = global %struct." << var.type.structName << " zeroinitializer\n";
+		else
+			_ctx.ir << var.pointer << " = global i32 0\n";
+		var.allocated = true;
+		emitted = true;
+	}
+	if (emitted)
+		_ctx.ir << "\n";
+	_globalsDeclared = true;
 }
 
 void CodeGenerator::generate(const ProgramNode& program)
@@ -182,6 +290,9 @@ void CodeGenerator::generateFunction(const FunctionNode& func)
 		}
 	}
 
+	if (_hasGlobalInit && func.name() == "main" && !func.isMember())
+		emitInstruction("call void @" + _globalInitName + "()");
+
 	bool previousInFunction = _inFunction;
 	TypeDesc previousReturn = _functionReturnType;
 	_inFunction = true;
@@ -243,6 +354,19 @@ void CodeGenerator::visitDecl(const DeclNode& node)
 	}
 
 	const StructInfo& structInfo = structIt->second;
+	if (node.initializers().size() == 1 && node.initializers().front())
+	{
+		const ExprNode* expr = node.initializers().front().get();
+		expr->accept(*this);
+		CodegenValue value = popValue();
+		if (value.isStruct && value.structName == structInfo.name)
+		{
+			emitInstruction("store %struct." + structInfo.name + " " + value.operand + ", %struct." + structInfo.name + "* " + var.pointer);
+			var.initialized = true;
+			return;
+		}
+	}
+
 	size_t initCount = std::min(node.initializers().size(), structInfo.fields.size());
 	for (size_t i = 0; i < initCount; ++i)
 	{
@@ -324,6 +448,16 @@ void CodeGenerator::visitAssignField(const AssignFieldNode& node)
 			emitInstruction("store %struct." + fieldType.structName + " " + value.operand + ", %struct." + fieldType.structName + "* " + fieldPtr);
 		}
 	}
+}
+
+void CodeGenerator::visitExprStmt(const ExprStmtNode& node)
+{
+	if (!node.expr())
+		return;
+	size_t stackBefore = _stack.size();
+	node.expr()->accept(*this);
+	while (_stack.size() > stackBefore)
+		_stack.pop_back();
 }
 
 void CodeGenerator::visitFieldAccess(const FieldAccessNode& node)
@@ -1013,6 +1147,8 @@ CodegenVariable& CodeGenerator::getVariable(SymbolID id)
 
 void CodeGenerator::ensureAllocated(CodegenVariable& var)
 {
+	if (var.isGlobal)
+		return;
 	if (!var.allocated && !var.pointer.empty())
 	{
 		if (var.type.kind == TypeDesc::Kind::Builtin)
@@ -1136,6 +1272,7 @@ bool CodeGenerator::handleBuiltinFunctionCall(const FunctionCallNode& node, cons
 		CodegenValue value = popValue();
 		ValueType argType = node.args()[0]->type();
 		std::string callTmp;
+		// Ignore printf's return so language-level write() behaves like a pure side effect.
 		switch (argType)
 		{
 		case ValueType::I64:
@@ -1144,7 +1281,7 @@ bool CodeGenerator::handleBuiltinFunctionCall(const FunctionCallNode& node, cons
 			std::string fmtPtr = formatPointer("@fmt_write_i64", kFmtWriteI64Len);
 			callTmp = nextTemp();
 			emitInstruction(callTmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i64 " + value.operand + ")");
-			pushValue({ callTmp, false, ValueType::I32, "" });
+			pushValue({ "0", false, ValueType::I32, "" });
 			return true;
 		}
 		case ValueType::Bool:
@@ -1155,7 +1292,7 @@ bool CodeGenerator::handleBuiltinFunctionCall(const FunctionCallNode& node, cons
 			std::string fmtPtr = formatPointer("@fmt_write_i32", kFmtWriteI32Len);
 			callTmp = nextTemp();
 			emitInstruction(callTmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + widened + ")");
-			pushValue({ callTmp, false, ValueType::I32, "" });
+			pushValue({ "0", false, ValueType::I32, "" });
 			return true;
 		}
 		case ValueType::String:
@@ -1164,7 +1301,7 @@ bool CodeGenerator::handleBuiltinFunctionCall(const FunctionCallNode& node, cons
 			std::string fmtPtr = formatPointer("@fmt_write_str", kFmtWriteStringLen);
 			callTmp = nextTemp();
 			emitInstruction(callTmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i8* " + value.operand + ")");
-			pushValue({ callTmp, false, ValueType::I32, "" });
+			pushValue({ "0", false, ValueType::I32, "" });
 			return true;
 		}
 		case ValueType::I32:
@@ -1174,7 +1311,7 @@ bool CodeGenerator::handleBuiltinFunctionCall(const FunctionCallNode& node, cons
 			std::string fmtPtr = formatPointer("@fmt_write_i32", kFmtWriteI32Len);
 			callTmp = nextTemp();
 			emitInstruction(callTmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + value.operand + ")");
-			pushValue({ callTmp, false, ValueType::I32, "" });
+			pushValue({ "0", false, ValueType::I32, "" });
 			return true;
 		}
 		}

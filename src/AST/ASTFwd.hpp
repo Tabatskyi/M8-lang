@@ -3,6 +3,7 @@
 class ASTNode;
 class StmtNode;
 class ExprNode;
+class ExprStmtNode;
 class FactorNode;
 class ProgramNode;
 class BlockNode;

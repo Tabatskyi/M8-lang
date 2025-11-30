@@ -24,6 +24,7 @@ add_executable (M8-lang
     "AST/BoolLiteralNode.cpp"
     "AST/DeclNode.cpp"
     "AST/ExprNode.cpp"
+    "AST/ExprStmtNode.cpp"
     "AST/FactorNode.cpp"
     "AST/FieldAccessNode.cpp"
     "AST/FunctionCallNode.cpp"

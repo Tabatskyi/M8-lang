@@ -13,10 +13,13 @@ size_t ProgramNode::scopeId() const
     return _scopeId;
 }
 
-void ProgramNode::appendStatement(std::unique_ptr<StmtNode> stmt)
+StmtNode* ProgramNode::appendStatement(std::unique_ptr<StmtNode> stmt)
 {
-    if (stmt)
-        _statements.push_back(std::move(stmt));
+    if (!stmt)
+        return nullptr;
+    StmtNode* raw = stmt.get();
+    _statements.push_back(std::move(stmt));
+    return raw;
 }
 
 void ProgramNode::accept(ASTVisitor& visitor) const

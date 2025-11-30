@@ -63,7 +63,7 @@ def main(argv: list[str]) -> int:
 
     run_checked([str(compiler), str(source), str(ll_path)])
     run_checked([str(llc), "-filetype=obj", str(ll_path), "-o", str(obj_path)])
-    run_checked([str(clang), str(obj_path), "-o", str(exe_path)])
+    run_checked([str(clang), str(obj_path), "-o", str(exe_path), "-no-pie"])
 
     input_text = input_path.read_text() if input_path else None
     exec_result = run_checked([str(exe_path)], input_text=input_text)

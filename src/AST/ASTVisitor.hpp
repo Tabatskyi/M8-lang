@@ -12,6 +12,7 @@ public:
 	virtual void visitDecl(const DeclNode& node) = 0;
 	virtual void visitAssign(const AssignNode& node) = 0;
 	virtual void visitAssignField(const AssignFieldNode& node) = 0;
+	virtual void visitExprStmt(const ExprStmtNode& node) = 0;
 	virtual void visitIf(const IfNode& node) = 0;
 	virtual void visitReturn(const ReturnNode& node) = 0;
 	virtual void visitBinaryOp(const BinaryOpNode& node) = 0;

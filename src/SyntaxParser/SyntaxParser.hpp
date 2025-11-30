@@ -14,6 +14,7 @@
 #include "../AST/DeclNode.hpp"
 #include "../AST/AssignNode.hpp"
 #include "../AST/AssignFieldNode.hpp"
+#include "../AST/ExprStmtNode.hpp"
 #include "../AST/IfNode.hpp"
 #include "../AST/BinaryOpNode.hpp"
 #include "../AST/UnaryOpNode.hpp"
@@ -49,6 +50,7 @@ public:
 
     std::unique_ptr<DeclNode> parseDecl();
     std::unique_ptr<StmtNode> parseAssign();
+    std::unique_ptr<StmtNode> parseExprStmt();
 
     std::unique_ptr<ExprNode> parseExpr();
     std::unique_ptr<ExprNode> parseEquality();
@@ -67,6 +69,8 @@ private:
     bool expect(TokenType type, const std::string& message);
 
     bool canStartType(const Token* token) const;
+    bool canStartExprStatement(const Token* token) const;
+    bool identifierStartsAssignment() const;
     bool isStructLiteralAhead() const;
 
     void skipNewlines();

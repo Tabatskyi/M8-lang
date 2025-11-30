@@ -1,6 +1,9 @@
 #pragma once
 
-#include "ASTVisitor.hpp"
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "ExprNode.hpp"
 #include "FactorNode.hpp"
 
@@ -11,6 +14,7 @@ public:
 
 	const std::string& name() const;
 	const std::vector<std::unique_ptr<ExprNode>>& args() const;
+    void setName(std::string name);
 
 	void setSymbolId(SymbolID id) const;
 	SymbolID symbolId() const;

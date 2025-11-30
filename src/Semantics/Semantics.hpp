@@ -15,6 +15,7 @@
 #include "../AST/BlockNode.hpp"
 #include "../AST/BoolLiteralNode.hpp"
 #include "../AST/StringLiteralNode.hpp"
+#include "../AST/ExprStmtNode.hpp"
 #include "../AST/DeclNode.hpp"
 #include "../AST/FieldAccessNode.hpp"
 #include "../AST/FunctionCallNode.hpp"
@@ -49,6 +50,7 @@ public:
     void visitDecl(const DeclNode& node) override;
     void visitAssign(const AssignNode& node) override;
     void visitAssignField(const AssignFieldNode& node) override;
+    void visitExprStmt(const ExprStmtNode& node) override;
     void visitIf(const IfNode& node) override;
     void visitReturn(const ReturnNode& node) override;
     void visitBinaryOp(const BinaryOpNode& node) override;
@@ -64,6 +66,8 @@ public:
     void visitStructLiteral(const StructLiteralNode& node) override;
 
 private:
+    void declareTopLevelFunctions(const ProgramNode& program);
+    bool declareFunctionSignature(const FunctionNode& node);
     void enterScope(size_t scopeId);
     void exitScope();
     size_t currentScopeId() const;
@@ -87,6 +91,14 @@ private:
     void analyzeBuiltinRead(const FunctionCallNode& node);
     void analyzeBuiltinWrite(const FunctionCallNode& node);
     ValueType currentExpectedValue() const;
+    bool instantiateTemplateCall(const FunctionCallNode& node);
+    TypeDesc deduceTemplateArgument(const FunctionNode& templ, const FunctionCallNode& call) const;
+    std::string templatePlaceholder(const FunctionNode& node) const;
+    std::string makeTemplateInstanceKey(const std::string& baseName, const TypeDesc& type) const;
+    std::string describeType(const TypeDesc& type) const;
+    size_t collectMaxScopeId(const ProgramNode& program) const;
+    size_t collectMaxScopeId(const StmtNode& stmt) const;
+    size_t collectMaxScopeId(const BlockNode& block) const;
 
     std::vector<std::string> _errors;
     std::vector<std::string> _warnings;
@@ -101,4 +113,8 @@ private:
     TypeDesc _currentFunctionReturn{ TypeDesc::Builtin(ValueType::Invalid) };
     std::string _currentMemberMaster;
     std::vector<ValueType> _expectedValueStack;
+    ProgramNode* _programNode = nullptr;
+    std::unordered_map<std::string, const FunctionNode*> _templateRegistry;
+    std::unordered_map<std::string, std::string> _templateInstanceNames;
+    size_t _nextSyntheticScopeId = 0;
 };

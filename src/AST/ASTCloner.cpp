@@ -115,6 +115,15 @@ std::unique_ptr<StmtNode> ASTCloner::cloneStmt(const StmtNode& stmt)
         clone->setLine(stmt.line());
         return clone;
     }
+    if (auto* exprStmt = dynamic_cast<const ExprStmtNode*>(&stmt))
+    {
+        std::unique_ptr<ExprNode> expr;
+        if (const ExprNode* inner = exprStmt->expr())
+            expr = cloneExpr(*inner);
+        auto clone = std::make_unique<ExprStmtNode>(std::move(expr));
+        clone->setLine(stmt.line());
+        return clone;
+    }
     if (auto* ret = dynamic_cast<const ReturnNode*>(&stmt))
     {
         std::unique_ptr<ExprNode> value;

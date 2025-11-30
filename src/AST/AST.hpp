@@ -11,6 +11,7 @@
 #include "StringLiteralNode.hpp"
 #include "DeclNode.hpp"
 #include "ExprNode.hpp"
+#include "ExprStmtNode.hpp"
 #include "FactorNode.hpp"
 #include "FieldAccessNode.hpp"
 #include "FunctionCallNode.hpp"

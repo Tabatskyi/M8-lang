@@ -1,5 +1,7 @@
 #include "Semantics.hpp"
 
+#include "../AST/ASTCloner.hpp"
+
 namespace
 {
 class ExpectedValueScope
@@ -51,19 +53,132 @@ bool SemanticAnalyzer::analyze(const ProgramNode& program)
     _returnSeen = false;
     _currentFunctionReturn = TypeDesc::Builtin(ValueType::Invalid);
     _currentMemberMaster.clear();
+    _templateRegistry.clear();
+    _templateInstanceNames.clear();
+    _programNode = const_cast<ProgramNode*>(&program);
+    _nextSyntheticScopeId = collectMaxScopeId(program) + 1;
 
     registerBuiltins();
+    declareTopLevelFunctions(program);
     program.accept(*this);
     return _errors.empty();
+}
+
+void SemanticAnalyzer::declareTopLevelFunctions(const ProgramNode& program)
+{
+    for (const auto& stmt : program.statements())
+    {
+        if (!stmt)
+            continue;
+        if (const auto* func = dynamic_cast<const FunctionNode*>(stmt.get()))
+        {
+            if (func->isTemplate())
+            {
+                if (_templateRegistry.count(func->name()))
+                    addError("Template function '" + func->name() + "' redeclared", *func);
+                else
+                    _templateRegistry.emplace(func->name(), func);
+                continue;
+            }
+            declareFunctionSignature(*func);
+        }
+    }
+}
+
+bool SemanticAnalyzer::declareFunctionSignature(const FunctionNode& node)
+{
+    if (_functions.count(node.name()))
+    {
+        addError("Function '" + node.name() + "' redeclared", node);
+        return false;
+    }
+
+    FunctionInfo info;
+    info.name = node.name();
+    info.returnType = node.returnType();
+    info.scopeId = node.scopeId();
+    info.isMember = node.isMember();
+    info.masterStruct = node.isMember() ? node.masterStruct() : std::string{};
+    info.isBuiltin = false;
+    for (const auto& param : node.params())
+        info.params.push_back(FunctionParamInfo{ param.type, param.name, InvalidSymbolID });
+    _functions.emplace(info.name, std::move(info));
+    return true;
+}
+
+size_t SemanticAnalyzer::collectMaxScopeId(const ProgramNode& program) const
+{
+    size_t maxId = program.scopeId();
+    for (const auto& stmt : program.statements())
+    {
+        if (!stmt)
+            continue;
+        maxId = std::max(maxId, collectMaxScopeId(*stmt));
+    }
+    return maxId;
+}
+
+size_t SemanticAnalyzer::collectMaxScopeId(const StmtNode& stmt) const
+{
+    if (const auto* func = dynamic_cast<const FunctionNode*>(&stmt))
+    {
+        size_t maxId = func->scopeId();
+        if (const BlockNode* body = func->body())
+            maxId = std::max(maxId, collectMaxScopeId(*body));
+        return maxId;
+    }
+
+    if (const auto* block = dynamic_cast<const BlockNode*>(&stmt))
+        return collectMaxScopeId(*block);
+
+    if (const auto* ifNode = dynamic_cast<const IfNode*>(&stmt))
+    {
+        size_t maxId = 0;
+        if (const BlockNode* thenBlock = ifNode->thenBlock())
+            maxId = std::max(maxId, collectMaxScopeId(*thenBlock));
+        if (const BlockNode* elseBlock = ifNode->elseBlock())
+            maxId = std::max(maxId, collectMaxScopeId(*elseBlock));
+        return maxId;
+    }
+
+    if (const auto* structDecl = dynamic_cast<const StructDeclNode*>(&stmt))
+    {
+        size_t maxId = 0;
+        for (const auto& method : structDecl->functions())
+        {
+            if (!method)
+                continue;
+            maxId = std::max(maxId, collectMaxScopeId(*method));
+        }
+        return maxId;
+    }
+
+    return 0;
+}
+
+size_t SemanticAnalyzer::collectMaxScopeId(const BlockNode& block) const
+{
+    size_t maxId = block.scopeId();
+    for (const auto& stmt : block.statements())
+    {
+        if (!stmt)
+            continue;
+        maxId = std::max(maxId, collectMaxScopeId(*stmt));
+    }
+    return maxId;
 }
 
 void SemanticAnalyzer::visitProgram(const ProgramNode& node)
 {
     enterScope(node.scopeId());
-    for (const auto& stmt : node.statements())
+    ProgramNode* program = _programNode ? _programNode : const_cast<ProgramNode*>(&node);
+    size_t index = 0;
+    while (index < program->statements().size())
     {
+        const auto& stmt = program->statements()[index];
         if (stmt)
             stmt->accept(*this);
+        ++index;
     }
     exitScope();
 }
@@ -102,23 +217,21 @@ void SemanticAnalyzer::visitStructDecl(const StructDeclNode& node)
 
 void SemanticAnalyzer::visitFunction(const FunctionNode& node)
 {
-    if (_functions.count(node.name()))
-    {
-        addError("Function '" + node.name() + "' redeclared", node);
+    if (node.isTemplate())
         return;
-    }
 
-    FunctionInfo info;
-    info.name = node.name();
-    info.returnType = node.returnType();
-    info.scopeId = node.scopeId();
-    info.isMember = node.isMember();
-    info.masterStruct = node.isMember() ? node.masterStruct() : std::string{};
-    info.isBuiltin = false;
-    for (const auto& param : node.params())
-        info.params.push_back(FunctionParamInfo{ param.type, param.name, InvalidSymbolID });
-    auto [funcIt, inserted] = _functions.emplace(info.name, std::move(info));
-    FunctionInfo* registeredInfo = &funcIt->second;
+    FunctionInfo* registeredInfo = nullptr;
+    auto funcIt = _functions.find(node.name());
+    if (funcIt != _functions.end())
+    {
+        registeredInfo = &funcIt->second;
+    }
+    else
+    {
+        if (!declareFunctionSignature(node))
+            return;
+        registeredInfo = &_functions.at(node.name());
+    }
 
     enterScope(node.scopeId());
     for (size_t idx = 0; idx < node.params().size(); ++idx)
@@ -337,6 +450,12 @@ void SemanticAnalyzer::visitAssignField(const AssignFieldNode& node)
                 addError("Struct field assignment type mismatch", value);
         }
     }
+}
+
+void SemanticAnalyzer::visitExprStmt(const ExprStmtNode& node)
+{
+    if (const ExprNode* expr = node.expr())
+        expr->accept(*this);
 }
 
 void SemanticAnalyzer::visitIf(const IfNode& node)
@@ -589,7 +708,15 @@ void SemanticAnalyzer::visitFieldAccess(const FieldAccessNode& node)
 
 void SemanticAnalyzer::visitFunctionCall(const FunctionCallNode& node)
 {
+    for (const auto& arg : node.args())
+    {
+        if (arg)
+            arg->accept(*this);
+    }
+
     auto funcIt = _functions.find(node.name());
+    if (funcIt == _functions.end() && instantiateTemplateCall(node))
+        funcIt = _functions.find(node.name());
     if (funcIt == _functions.end())
     {
         SymbolID sid = resolveSymbol(node.name());
@@ -801,6 +928,134 @@ ValueType SemanticAnalyzer::currentExpectedValue() const
     return _expectedValueStack.empty() ? ValueType::Invalid : _expectedValueStack.back();
 }
 
+bool SemanticAnalyzer::instantiateTemplateCall(const FunctionCallNode& node)
+{
+    auto templIt = _templateRegistry.find(node.name());
+    if (templIt == _templateRegistry.end())
+        return false;
+
+    const FunctionNode* templ = templIt->second;
+    TypeDesc concrete = deduceTemplateArgument(*templ, node);
+    if (concrete.kind == TypeDesc::Kind::Builtin && concrete.builtin == ValueType::Invalid && concrete.structName.empty())
+    {
+        addError("Unable to deduce template argument for '" + templ->name() + "'", node);
+        return false;
+    }
+
+    std::string key = makeTemplateInstanceKey(templ->name(), concrete);
+    auto existing = _templateInstanceNames.find(key);
+    if (existing != _templateInstanceNames.end())
+    {
+        const_cast<FunctionCallNode&>(node).setName(existing->second);
+        return true;
+    }
+
+    std::string placeholder = templatePlaceholder(*templ);
+    if (placeholder.empty())
+    {
+        addError("Template function '" + templ->name() + "' lacks a placeholder parameter", *templ);
+        return false;
+    }
+
+    std::string instanceName = templ->name() + "__" + describeType(concrete);
+    std::string baseName = instanceName;
+    int suffix = 1;
+    while (_functions.count(instanceName))
+        instanceName = baseName + "_" + std::to_string(suffix++);
+
+    TemplateSubstitution substitution{ placeholder, concrete };
+    ASTCloner cloner(substitution, [this]() { return _nextSyntheticScopeId++; });
+    auto clone = cloner.cloneFunction(*templ, instanceName);
+    if (!clone)
+        return false;
+
+    StmtNode* inserted = _programNode ? _programNode->appendStatement(std::move(clone)) : nullptr;
+    auto* functionClone = inserted ? dynamic_cast<FunctionNode*>(inserted) : nullptr;
+    if (!functionClone)
+    {
+        addError("Internal error while instantiating template function", node);
+        return false;
+    }
+
+    declareFunctionSignature(*functionClone);
+    _templateInstanceNames.emplace(key, functionClone->name());
+    const_cast<FunctionCallNode&>(node).setName(functionClone->name());
+    return true;
+}
+
+TypeDesc SemanticAnalyzer::deduceTemplateArgument(const FunctionNode& templ, const FunctionCallNode& call) const
+{
+    const auto& params = templ.params();
+    const auto& args = call.args();
+    for (size_t i = 0; i < params.size() && i < args.size(); ++i)
+    {
+        if (params[i].type.kind != TypeDesc::Kind::TemplateParam)
+            continue;
+        const ExprNode* expr = args[i].get();
+        if (!expr)
+            continue;
+        if (expr->type() != ValueType::Invalid)
+            return TypeDesc::Builtin(expr->type());
+        std::string structName;
+        if (extractStructType(expr, structName))
+            return TypeDesc::Struct(structName);
+    }
+
+    if (templ.returnType().kind == TypeDesc::Kind::TemplateParam)
+    {
+        ValueType expected = currentExpectedValue();
+        switch (expected)
+        {
+        case ValueType::Bool:
+        case ValueType::I32:
+        case ValueType::I64:
+        case ValueType::String:
+            return TypeDesc::Builtin(expected);
+        default:
+            break;
+        }
+    }
+
+    return TypeDesc::Builtin(ValueType::Invalid);
+}
+
+std::string SemanticAnalyzer::templatePlaceholder(const FunctionNode& node) const
+{
+    for (const auto& param : node.params())
+    {
+        if (param.type.kind == TypeDesc::Kind::TemplateParam)
+            return param.type.templateName;
+    }
+    if (node.returnType().kind == TypeDesc::Kind::TemplateParam)
+        return node.returnType().templateName;
+    return {};
+}
+
+std::string SemanticAnalyzer::makeTemplateInstanceKey(const std::string& baseName, const TypeDesc& type) const
+{
+    return baseName + "|" + describeType(type);
+}
+
+std::string SemanticAnalyzer::describeType(const TypeDesc& type) const
+{
+    switch (type.kind)
+    {
+    case TypeDesc::Kind::Builtin:
+        switch (type.builtin)
+        {
+        case ValueType::Bool: return "bool";
+        case ValueType::I32: return "i32";
+        case ValueType::I64: return "i64";
+        case ValueType::String: return "string";
+        default: return "invalid";
+        }
+    case TypeDesc::Kind::Struct:
+        return "struct_" + type.structName;
+    default:
+        return "template";
+    }
+}
+
 bool SemanticAnalyzer::extractStructType(const ExprNode* expr, std::string& outStructName) const
 {
     if (!expr)
@@ -826,6 +1081,36 @@ bool SemanticAnalyzer::extractStructType(const ExprNode* expr, std::string& outS
         if (literal->structType().kind == TypeDesc::Kind::Struct)
         {
             outStructName = literal->structType().structName;
+            return true;
+        }
+        return false;
+    }
+
+    if (const auto* funcCall = dynamic_cast<const FunctionCallNode*>(expr))
+    {
+        auto it = _functions.find(funcCall->name());
+        if (it != _functions.end() && it->second.returnType.kind == TypeDesc::Kind::Struct)
+        {
+            outStructName = it->second.returnType.structName;
+            return true;
+        }
+        return false;
+    }
+
+    if (const auto* memberCall = dynamic_cast<const MemberFunctionCallNode*>(expr))
+    {
+        SymbolID baseId = memberCall->baseSymbolId();
+        if (baseId == InvalidSymbolID)
+            return false;
+
+        TypeDesc masterType = const_cast<SemanticAnalyzer*>(this)->resolveFieldType(baseId, memberCall->fieldChain(), memberCall);
+        if (masterType.kind != TypeDesc::Kind::Struct)
+            return false;
+
+        const FunctionInfo* info = findMemberFunction(memberCall->funcName(), masterType.structName);
+        if (info && info->returnType.kind == TypeDesc::Kind::Struct)
+        {
+            outStructName = info->returnType.structName;
             return true;
         }
         return false;

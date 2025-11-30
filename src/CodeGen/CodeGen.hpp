@@ -17,6 +17,7 @@
 #include "../AST/BlockNode.hpp"
 #include "../AST/BoolLiteralNode.hpp"
 #include "../AST/StringLiteralNode.hpp"
+#include "../AST/ExprStmtNode.hpp"
 #include "../AST/DeclNode.hpp"
 #include "../AST/FieldAccessNode.hpp"
 #include "../AST/FunctionCallNode.hpp"
@@ -54,6 +55,7 @@ struct CodegenVariable
     bool allocated = false;
     bool initialized = false;
     std::string pointer;
+    bool isGlobal = false;
 };
 
 class CodeGenerator : public ASTVisitor
@@ -68,11 +70,14 @@ public:
     };
 
     CodeGenerator(IRContext& ctx,
-                  const std::unordered_map<SymbolID, VariableInfo>& symbols,
-                  const StructTable& structs,
-                  const FunctionTable& functions);
+              const std::unordered_map<SymbolID, VariableInfo>& symbols,
+              const StructTable& structs,
+              const FunctionTable& functions,
+              size_t globalScopeId);
 
     void emitTopLevel(const ProgramNode& program);
+    void planGlobalInit(const ProgramNode& program);
+    void emitGlobalInit();
     void generate(const ProgramNode& program);
 
     void visitProgram(const ProgramNode& node) override;
@@ -82,6 +87,7 @@ public:
     void visitStructDecl(const StructDeclNode& node) override;
     void visitAssign(const AssignNode& node) override;
     void visitAssignField(const AssignFieldNode& node) override;
+    void visitExprStmt(const ExprStmtNode& node) override;
     void visitFieldAccess(const FieldAccessNode& node) override;
     void visitFunctionCall(const FunctionCallNode& node) override;
     void visitMemberFunctionCall(const MemberFunctionCallNode& node) override;
@@ -96,6 +102,8 @@ public:
     void visitStructLiteral(const StructLiteralNode& node) override;
 
     void emitStringLiteralGlobals();
+    bool hasGlobalInit() const { return _hasGlobalInit; }
+    const std::string& globalInitName() const { return _globalInitName; }
 
 private:
     void generateFunction(const FunctionNode& func);
@@ -119,6 +127,7 @@ private:
     bool handleBuiltinFunctionCall(const FunctionCallNode& node, const FunctionInfo& info);
     void emitStructDefinition(const StructDeclNode& node);
     void emitStructDefinition(const StructInfo& info);
+    void emitGlobalDeclarations();
     const StringLiteralInfo& internStringLiteral(const std::string& literal);
     std::string formatPointer(const std::string& symbol, size_t length);
 
@@ -138,4 +147,9 @@ private:
     SymbolID _selfSymbolId = InvalidSymbolID;
     std::unordered_map<std::string, StringLiteralInfo> _stringLiterals;
     int _stringLiteralCounter = 0;
+    bool _hasGlobalInit = false;
+    std::string _globalInitName = "__m8_global_init";
+    size_t _globalScopeId = 0;
+    bool _globalsDeclared = false;
+    std::vector<const StmtNode*> _globalInitStmts;
 };

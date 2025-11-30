@@ -33,6 +33,11 @@ std::unique_ptr<ProgramNode> SyntaxParser::parseProgram()
 
     while (!atEnd())
     {
+        skipNewlines();
+        while (match(TokenType::StmtSep))
+            skipNewlines();
+        if (atEnd())
+            break;
         std::unique_ptr<StmtNode> currentStmt = parseStmt();
         if (!currentStmt) 
             return nullptr;
@@ -41,8 +46,9 @@ std::unique_ptr<ProgramNode> SyntaxParser::parseProgram()
             break;
     }
 
-    if (!atEnd() && peek()->type == TokenType::StmtSep)
-        eat();
+    skipNewlines();
+    while (match(TokenType::StmtSep))
+        skipNewlines();
 
     if (!atEnd())
         addError("Unexpected tokens after program body");
@@ -68,7 +74,9 @@ std::unique_ptr<StmtNode> SyntaxParser::parseStmt()
             return parseDecl();
 
         case TokenType::Identifier:
-            return parseAssign();
+            if (identifierStartsAssignment())
+                return parseAssign();
+            return parseExprStmt();
 
         case TokenType::Return:
             return parseReturn();
@@ -83,6 +91,8 @@ std::unique_ptr<StmtNode> SyntaxParser::parseStmt()
             return parseStruct();
 
         default:
+            if (canStartExprStatement(token))
+                return parseExprStmt();
             addError("Unexpected token '" + token->lexeme + "' at start of statement");
             return nullptr;
     }
@@ -160,11 +170,19 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
         return nullptr;
 
     std::vector<std::unique_ptr<StmtNode>> bodyStatements;
-    std::unique_ptr<StmtNode> bodyStmt = parseStmt();
-    if (!bodyStmt) 
-        return nullptr;
-    bodyStatements.push_back(std::move(bodyStmt));
-    
+    while (!atEnd())
+    {
+        skipNewlines();
+        const Token* nextToken = peek();
+        if (!nextToken || nextToken->type == TokenType::StmtSep || nextToken->type == TokenType::Function || nextToken->type == TokenType::Struct)
+            break;
+        std::unique_ptr<StmtNode> stmt = parseStmt();
+        if (!stmt)
+            return nullptr;
+        bodyStatements.push_back(std::move(stmt));
+        skipNewlines();
+    }
+
     auto body = parseBlock(std::move(bodyStatements), allocateScopeId());
 
     return std::make_unique<FunctionNode>(std::move(name), std::move(params), returnType, std::move(body), body->scopeId(), isMember ? masterStruct : std::string{}, isTemplate);
@@ -241,17 +259,13 @@ std::unique_ptr<ReturnNode> SyntaxParser::parseReturn()
         return nullptr;
 
     skipNewlines();
-    if (const Token* t = peek())
+    const Token* next = peek();
+    if (canStartExprStatement(next))
     {
-        if (t->type == TokenType::Identifier || t->type == TokenType::Number ||
-            t->type == TokenType::True || t->type == TokenType::False ||
-            t->type == TokenType::LParen || t->type == TokenType::Sub || t->type == TokenType::Not ||
-            t->type == TokenType::StringLiteral)
-        {
-            std::unique_ptr<ExprNode> expr = parseExpr();
-            if (!expr) return nullptr;
-            return std::make_unique<ReturnNode>(std::move(expr));
-        }
+        std::unique_ptr<ExprNode> expr = parseExpr();
+        if (!expr)
+            return nullptr;
+        return std::make_unique<ReturnNode>(std::move(expr));
     }
     return std::make_unique<ReturnNode>(nullptr);
 }
@@ -462,6 +476,14 @@ std::unique_ptr<StmtNode> SyntaxParser::parseAssign()
 
     addError("Expected assignment operator (᛬ or op᛬)");
     return nullptr;
+}
+
+std::unique_ptr<StmtNode> SyntaxParser::parseExprStmt()
+{
+    std::unique_ptr<ExprNode> expr = parseExpr();
+    if (!expr)
+        return nullptr;
+    return std::make_unique<ExprStmtNode>(std::move(expr));
 }
 
 std::unique_ptr<ExprNode> SyntaxParser::parseExpr()
@@ -845,6 +867,70 @@ bool SyntaxParser::canStartType(const Token* token) const
         return true;
     default:
         return false;
+    }
+}
+
+bool SyntaxParser::canStartExprStatement(const Token* token) const
+{
+    if (!token)
+        return false;
+    switch (token->type)
+    {
+    case TokenType::Identifier:
+    case TokenType::Number:
+    case TokenType::True:
+    case TokenType::False:
+    case TokenType::StringLiteral:
+    case TokenType::Read:
+    case TokenType::Write:
+    case TokenType::LParen:
+    case TokenType::Sub:
+    case TokenType::Not:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool SyntaxParser::identifierStartsAssignment() const
+{
+    const Token* first = peek();
+    if (!first || first->type != TokenType::Identifier)
+        return false;
+
+    size_t offset = 1;
+    while (true)
+    {
+        const Token* look = peek(offset);
+        if (!look)
+            return false;
+
+        if (look->type == TokenType::Newline)
+        {
+            ++offset;
+            continue;
+        }
+
+        if (look->type == TokenType::Dot)
+        {
+            const Token* afterDot = peek(offset + 1);
+            if (!afterDot || afterDot->type != TokenType::Identifier)
+                return false;
+            offset += 2;
+            continue;
+        }
+
+        switch (look->type)
+        {
+        case TokenType::Assign:
+        case TokenType::AddAssign:
+        case TokenType::SubAssign:
+        case TokenType::MulAssign:
+        case TokenType::DivAssign:
+            return true;
+        default:
+            return false;
+        }
     }
 }
 

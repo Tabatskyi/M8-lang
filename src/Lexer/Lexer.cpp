@@ -154,7 +154,7 @@ std::vector<Token> Lexer::tokenize(const string& source) const
                 break;
             }
 
-            if (std::isalpha(uc)) {
+            if (std::isalpha(uc) || uc == '_') {
                 state = State::Identifier;
                 tokenStart = i;
                 ++i;
@@ -173,8 +173,13 @@ std::vector<Token> Lexer::tokenize(const string& source) const
         }
         case State::Identifier:
         {
-            while (i < source.size() && std::isalnum(static_cast<unsigned char>(source[i])))
+            while (i < source.size())
+            {
+                unsigned char ch = static_cast<unsigned char>(source[i]);
+                if (!std::isalnum(ch) && ch != '_')
+                    break;
                 ++i;
+            }
 			emitIdentifier(tokenStart, i, source, out);
             state = State::Start;
             break;

@@ -67,14 +67,26 @@ int main(int argc, char** argv)
     ctx.ir << "@fmt_read_i64 = private constant [5 x i8] c\"%lld\\00\"\n";
     ctx.ir << "@fmt_read_str = private constant [7 x i8] c\"%1023s\\00\"\n\n";
 
-    CodeGenerator generator(ctx, semantic.symbols(), semantic.structs(), semantic.functions());
+    const auto& functions = semantic.functions();
+    bool hasUserMain = false;
+    if (auto it = functions.find("main"); it != functions.end() && !it->second.isMember)
+        hasUserMain = true;
+
+    CodeGenerator generator(ctx, semantic.symbols(), semantic.structs(), functions, program->scopeId());
+    if (hasUserMain)
+        generator.planGlobalInit(*program);
     generator.emitTopLevel(*program);
     generator.emitStringLiteralGlobals();
 
-    ctx.ir << "define i32 @main() {\n";
-    generator.generate(*program);
-    ctx.ir << "}\n";
-    generator.emitStringLiteralGlobals();
+    if (!hasUserMain)
+    {
+        ctx.ir << "define i32 @main() {\n";
+        if (generator.hasGlobalInit())
+            ctx.ir << "  call void @" << generator.globalInitName() << "()\n";
+        generator.generate(*program);
+        ctx.ir << "}\n";
+        generator.emitStringLiteralGlobals();
+    }
 
     string filename;
     if (argc >= 3)
