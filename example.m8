@@ -1,30 +1,45 @@
+ᚠidentity᛬ᚮvalue᛬ᛸᚭ᛬ᛸ᛬
+    ᚷvalue
+ᛵ
+
 ᛋVector2᛬x᛬ᛰᛵy᛬ᛰ
 ᛵ
     ᛃlengthSquared᛬ᚮᚭ᛬ᛰ᛬
         ᚷ_selfᚽx᛭_selfᚽx᛭_selfᚽy᛭_selfᚽy
+    ᛵ
+    ᛃdotWith᛬ᚮother᛬Vector2ᚭ᛬ᛰ᛬
+        ᚷ_selfᚽx᛭otherᚽx᛭_selfᚽy᛭otherᚽy
+    ᛵ
+    ᛃcrossZWith᛬ᚮother᛬Vector2ᚭ᛬ᛰ᛬
+        ᚷ_selfᚽx᛭otherᚽy᛭_selfᚽy᛭otherᚽx
 ᛵ
 
-ᚠdotProduct᛬ᚮleft᛬Vector2ᛵright᛬Vector2ᚭ᛬ᛰ᛬
-    ᚷleftᚽx᛭rightᚽx᛭leftᚽy᛭rightᚽy
-ᛵ
-
-ᚠcrossZ᛬ᚮleft᛬Vector2ᛵright᛬Vector2ᚭ᛬ᛰ᛬
-    ᚷleftᚽx᛭rightᚽy᛭leftᚽy᛭rightᚽx
-ᛵ
-
-ᚠapply᛬ᚮop᛬ᛸᛵleft᛬Vector2ᛵright᛬Vector2ᚭ᛬ᛸ᛬
-    ᚷopᚮleftᛵrightᚭ
-ᛵ
-
-ᚠprintResults᛬ᚮdot᛬ᛰᛵcrossVal᛬ᛰᛵcombined᛬ᛰᚭ᛬ᛰ᛬
-    ᚷᚹᚮᛌResults summaryᛌᚭ᛭ᚹᚮᛌDot product:ᛌᚭ᛭ᚹᚮdotᚭ᛭ᚹᚮᛌCross z:ᛌᚭ᛭ᚹᚮcrossValᚭ᛭ᚹᚮᛌSum of length squared:ᛌᚭ᛭ᚹᚮcombinedᚭ
 ᛵ
 
 ᚠmain᛬ᚮᚭ᛬ᛰ᛬
-    ᚡvecA᛬Vector2᛬Vector2ᚮᚹᚮᛌVector Aᛌᚭ᛭ᚹᚮᛌEnter x coordinateᛌᚭ᛭ᚱᚮᚭᛵᚹᚮᛌEnter y coordinateᛌᚭ᛭ᚱᚮᚭ
-    ᚡvecB᛬Vector2᛬Vector2ᚮᚹᚮᛌVector Bᛌᚭ᛭ᚹᚮᛌEnter x coordinateᛌᚭ᛭ᚱᚮᚭᛵᚹᚮᛌEnter y coordinateᛌᚭ᛭ᚱᚮᚭ
-    ᚡdot᛬ᛰ᛬applyᚮdotProductᛵvecAᛵvecBᚭ
-    ᚡcrossVal᛬ᛰ᛬applyᚮcrossZᛵvecAᛵvecBᚭ
-    ᚡcombined᛬ᛰ᛬vecAᚽlengthSquared᛭vecBᚽlengthSquared
-    printResultsᚮdotᛵcrossValᛵcombinedᚭ
+    ᚹᚮᛌVector Aᛌᚭ
+    ᚹᚮᛌEnter x coordinateᛌᚭ
+    ᚡvecAx᛬ᛰ᛬ᚱᚮᚭ
+    ᚹᚮᛌEnter y coordinateᛌᚭ
+    ᚡvecAy᛬ᛰ᛬ᚱᚮᚭ
+    ᚡvecA᛬Vector2᛬Vector2ᚮvecAxᛵvecAyᚭ
+
+    ᚹᚮᛌVector Bᛌᚭ
+    ᚹᚮᛌEnter x coordinateᛌᚭ
+    ᚡvecBx᛬ᛰ᛬ᚱᚮᚭ
+    ᚹᚮᛌEnter y coordinateᛌᚭ
+    ᚡvecBy᛬ᛰ᛬ᚱᚮᚭ
+    ᚡvecB᛬Vector2᛬Vector2ᚮvecBxᛵvecByᚭ
+
+    ᚡdot᛬ᛰ᛬identityᚮvecAᚽdotWithᚮvecBᚭᚭ
+    ᚡcrossVal᛬ᛰ᛬identityᚮvecAᚽcrossZWithᚮvecBᚭᚭ
+    ᚡcombined᛬ᛰ᛬identityᚮvecAᚽlengthSquaredᚮᚭ᛭vecBᚽlengthSquaredᚮᚭᚭ
+
+    ᚹᚮᛌResults summaryᛌᚭ
+    ᚹᚮᛌDot product:ᛌᚭ
+    ᚹᚮdotᚭ
+    ᚹᚮᛌCross z:ᛌᚭ
+    ᚹᚮcrossValᚭ
+    ᚹᚮᛌSum of length squared:ᛌᚭ
+    ᚹᚮcombinedᚭ
 ᛵ
