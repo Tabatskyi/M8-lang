@@ -1,2 +1,34 @@
 Tabatskyi: add e2e tests for creation of structs and calling members/functions
 
+Created 3 todos
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/test/e2e/literal_output.out)
+
+Ran terminal command: cd /mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi && nl -ba test/e2e/literal_output.m8
+
+Ran terminal command: cd /mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi && nl -ba test/pass/test_declarations.m8
+
+Ran terminal command: cd /mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi && nl -ba test/e2e/add_three_inputs.m8
+
+Created [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/test/e2e/struct_literals.m8)
+
+Created [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/test/e2e/struct_literals.out)
+
+Created [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/test/e2e/struct_member_calls.m8)
+
+Created [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/test/e2e/struct_member_calls.out)
+
+Completed: *Plan struct e2e scenarios* (1/3)
+
+**Struct E2E Coverage**
+- Added struct_literals.m8/`.out` to exercise typed declarations initialized with struct literals plus member method invocation (`Point.sum`). Test prints the aggregated value via `main`, verifying literal construction and field access.
+- Added struct_member_calls.m8/`.out` to cover member calls returning both struct and primitive results: a `Pair.flip` method builds a struct literal, `Pair.delta` consumes another struct, and `main` prints the computed delta.
+
+**Testing**
+- `cd build && ctest --output-on-failure` (unit/semantic suite only; LLVM’s `llc/clang` still missing so e2e runner remains skipped).
+
+**Next Steps**
+1. Install LLVM tools (`llc`, `clang`) so CTest can pick up and execute the new end-to-end fixtures.
+2. Rerun `ctest -R struct_` (or full suite) to confirm the new programs pass once the backend pipeline is available.
+
+Made changes.

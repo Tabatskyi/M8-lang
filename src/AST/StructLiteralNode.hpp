@@ -1,11 +1,8 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "ExprNode.hpp"
 #include "TypeDesc.hpp"
+#include "ASTVisitor.hpp"
 
 class StructLiteralNode : public ExprNode
 {

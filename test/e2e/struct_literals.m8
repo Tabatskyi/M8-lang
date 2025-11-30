@@ -1,0 +1,18 @@
+ᛋPoint᛬x᛬ᛰᛵy᛬ᛰ
+ᛵ
+    ᛃsum᛬ᚮᚭ᛬ᛰ᛬
+        ᚷ_selfᚽx᛭_selfᚽy
+ᛵ
+
+ᛵ
+
+ᚡorigin᛬Point᛬Pointᚮ1ᛵ2ᚭ
+ᛵ
+ᚡvector᛬Point᛬Pointᚮ3ᛵ4ᚭ
+ᛵ
+
+ᛵ
+
+ᚠmain᛬ᚮᚭ᛬ᛰ᛬
+    ᚹᚮvectorᚽsumᚮᚭ᛭originᚽx᛭originᚽyᚭ
+ᛵ

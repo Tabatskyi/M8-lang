@@ -1,11 +1,7 @@
 #include "StructLiteralNode.hpp"
 
-#include "ASTVisitor.hpp"
-
 StructLiteralNode::StructLiteralNode(TypeDesc type, std::vector<std::unique_ptr<ExprNode>> args)
-    : _structType(std::move(type)), _args(std::move(args))
-{
-}
+    : _structType(std::move(type)), _args(std::move(args)) {}
 
 const TypeDesc& StructLiteralNode::structType() const
 {
