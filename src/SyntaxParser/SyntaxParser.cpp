@@ -125,6 +125,7 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
         return nullptr;
 
     std::vector<FunctionNode::Param> params;
+    bool isTemplate = false;
     if (isMember)
         params.push_back(FunctionNode::Param{ TypeDesc::Struct(masterStruct), std::string("_self") });
 
@@ -141,6 +142,8 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
             std::string pName = pTok->lexeme; eat();
             if (!expect(TokenType::Assign, "Expected '᛬' after parameter name")) return nullptr;
             TypeDesc pType = parseTypeDesc();
+            if (pType.kind == TypeDesc::Kind::TemplateParam)
+                isTemplate = true;
             params.push_back(FunctionNode::Param{ pType, pName });
             if (!match(TokenType::StmtSep)) break;
         }
@@ -151,6 +154,8 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
     if (!expect(TokenType::Assign, "Expected '᛬' after ')' for return type")) 
         return nullptr;
     TypeDesc returnType = parseTypeDesc();
+    if (returnType.kind == TypeDesc::Kind::TemplateParam)
+        isTemplate = true;
     if (!expect(TokenType::Assign, "Expected '᛬' before function body")) 
         return nullptr;
 
@@ -162,7 +167,7 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
     
     auto body = parseBlock(std::move(bodyStatements), allocateScopeId());
 
-    return std::make_unique<FunctionNode>(std::move(name), std::move(params), returnType, std::move(body), body->scopeId(), isMember ? masterStruct : std::string{});
+    return std::make_unique<FunctionNode>(std::move(name), std::move(params), returnType, std::move(body), body->scopeId(), isMember ? masterStruct : std::string{}, isTemplate);
 }
 
 std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
@@ -377,6 +382,7 @@ TypeDesc SyntaxParser::parseTypeDesc()
     case TokenType::I64: eat(); return TypeDesc::Builtin(ValueType::I64);
     case TokenType::Bool: eat(); return TypeDesc::Builtin(ValueType::Bool);
     case TokenType::String: eat(); return TypeDesc::Builtin(ValueType::String);
+    case TokenType::TemplateType: eat(); return TypeDesc::TemplateParam("ᛸ");
     case TokenType::Identifier: 
     {
         std::string name = token->lexeme; eat();
@@ -834,6 +840,7 @@ bool SyntaxParser::canStartType(const Token* token) const
     case TokenType::I64:
     case TokenType::Bool:
     case TokenType::String:
+    case TokenType::TemplateType:
     case TokenType::Identifier:
         return true;
     default:

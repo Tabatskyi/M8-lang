@@ -16,7 +16,7 @@ public:
 		mutable SymbolID symbolId = InvalidSymbolID;
 	};
 
-	FunctionNode(std::string name, std::vector<Param> params, TypeDesc returnType, std::unique_ptr<BlockNode> body, size_t scopeId, std::string masterStruct = {});
+	FunctionNode(std::string name, std::vector<Param> params, TypeDesc returnType, std::unique_ptr<BlockNode> body, size_t scopeId, std::string masterStruct = {}, bool isTemplate = false);
 
 	const std::string& name() const;
 	const std::vector<Param>& params() const;
@@ -25,6 +25,7 @@ public:
 	size_t scopeId() const;
 	bool isMember() const;
 	const std::string& masterStruct() const;
+    bool isTemplate() const;
 
 	void accept(ASTVisitor& visitor) const override;
 
@@ -35,4 +36,5 @@ private:
 	std::unique_ptr<BlockNode> _body;
 	size_t _scopeId;
 	std::string _masterStruct;
+    bool _isTemplate = false;
 };

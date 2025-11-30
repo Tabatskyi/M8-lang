@@ -24,6 +24,7 @@ enum class TokenType
     I64, // 'ᛯ'
     Bool, // 'ᛨ'
     String, // 'ꑭ'
+    TemplateType, // 'ᛸ'
 
     // Literals
     True, // 'ᛉ'

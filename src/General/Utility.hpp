@@ -20,22 +20,22 @@ inline bool isNumeric(ValueType type)
     return type == ValueType::I32 || type == ValueType::I64;
 }
 
-inline ValueType widerType(ValueType lhs, ValueType rhs)
+inline ValueType widerType(ValueType leftHandSide, ValueType rightHandSide)
 {
-    if (!isNumeric(lhs) || !isNumeric(rhs))
+    if (!isNumeric(leftHandSide) || !isNumeric(rightHandSide))
         return ValueType::Invalid;
-    if (lhs == ValueType::I64 || rhs == ValueType::I64)
+    if (leftHandSide == ValueType::I64 || rightHandSide == ValueType::I64)
         return ValueType::I64;
     return ValueType::I32;
 }
 
-inline ValueType comparisonOperandType(ValueType lhs, ValueType rhs)
+inline ValueType comparisonOperandType(ValueType leftHandSide, ValueType rightHandSide)
 {
-    if (lhs == ValueType::Bool && rhs == ValueType::Bool)
+    if (leftHandSide == ValueType::Bool && rightHandSide == ValueType::Bool)
         return ValueType::Bool;
-    if (lhs == ValueType::String && rhs == ValueType::String)
+    if (leftHandSide == ValueType::String && rightHandSide == ValueType::String)
         return ValueType::String;
-    return widerType(lhs, rhs);
+    return widerType(leftHandSide, rightHandSide);
 }
 
 inline bool isAssignable(ValueType target, ValueType source)

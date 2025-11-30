@@ -7,11 +7,12 @@
 
 struct TypeDesc
 {
-    enum class Kind { Builtin, Struct };
+    enum class Kind { Builtin, Struct, TemplateParam };
 
     Kind kind = Kind::Builtin;
     ValueType builtin = ValueType::Invalid;
     std::string structName;
+    std::string templateName;
 
     static TypeDesc Builtin(ValueType type)
     {
@@ -26,6 +27,14 @@ struct TypeDesc
         TypeDesc desc;
         desc.kind = Kind::Struct;
         desc.structName = std::move(name);
+        return desc;
+    }
+
+    static TypeDesc TemplateParam(std::string name)
+    {
+        TypeDesc desc;
+        desc.kind = Kind::TemplateParam;
+        desc.templateName = std::move(name);
         return desc;
     }
 };

@@ -23,5 +23,6 @@
 #include "ReturnNode.hpp"
 #include "StmtNode.hpp"
 #include "StructDecNode.hpp"
+#include "StructLiteralNode.hpp"
 #include "TypeDesc.hpp"
 #include "UnaryOpNode.hpp"

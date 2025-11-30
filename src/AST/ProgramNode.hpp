@@ -12,6 +12,7 @@ public:
 
 	const StmtList& statements() const;
 	size_t scopeId() const;
+    void appendStatement(std::unique_ptr<StmtNode> stmt);
 
 	void accept(ASTVisitor& visitor) const override;
 

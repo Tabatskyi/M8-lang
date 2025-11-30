@@ -18,6 +18,7 @@ add_executable (M8-lang
     "AST/ASTNode.cpp"
     "AST/AssignFieldNode.cpp"
     "AST/AssignNode.cpp"
+    "AST/ASTCloner.cpp"
     "AST/BinaryOpNode.cpp"
     "AST/BlockNode.cpp"
     "AST/BoolLiteralNode.cpp"

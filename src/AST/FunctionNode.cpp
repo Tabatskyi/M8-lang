@@ -1,7 +1,7 @@
 #include "FunctionNode.hpp"
 
-FunctionNode::FunctionNode(std::string name, std::vector<Param> params, TypeDesc returnType, std::unique_ptr<BlockNode> body, size_t scopeId, std::string masterStruct)
-    : _name(std::move(name)), _params(std::move(params)), _returnType(std::move(returnType)), _body(std::move(body)), _scopeId(scopeId), _masterStruct(std::move(masterStruct)) {}
+FunctionNode::FunctionNode(std::string name, std::vector<Param> params, TypeDesc returnType, std::unique_ptr<BlockNode> body, size_t scopeId, std::string masterStruct, bool isTemplate)
+    : _name(std::move(name)), _params(std::move(params)), _returnType(std::move(returnType)), _body(std::move(body)), _scopeId(scopeId), _masterStruct(std::move(masterStruct)), _isTemplate(isTemplate) {}
 
 const std::string& FunctionNode::name() const
 {
@@ -36,6 +36,11 @@ bool FunctionNode::isMember() const
 const std::string& FunctionNode::masterStruct() const
 {
     return _masterStruct;
+}
+
+bool FunctionNode::isTemplate() const
+{
+    return _isTemplate;
 }
 
 void FunctionNode::accept(ASTVisitor& visitor) const
