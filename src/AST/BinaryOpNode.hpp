@@ -1,8 +1,7 @@
 #pragma once
 
-#include <memory>
-
 #include "ExprNode.hpp"
+#include "ASTVisitor.hpp"
 
 class BinaryOpNode : public ExprNode
 {

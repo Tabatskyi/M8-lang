@@ -1,9 +1,5 @@
 #include "AssignNode.hpp"
 
-#include <utility>
-
-#include "ASTVisitor.hpp"
-
 AssignNode::AssignNode(std::string identifier, std::unique_ptr<ExprNode> value)
     : _identifier(std::move(identifier)), _value(std::move(value))
 {

@@ -1,13 +1,7 @@
 #include "ReturnNode.hpp"
 
-#include <utility>
-
-#include "ASTVisitor.hpp"
-
 ReturnNode::ReturnNode(std::unique_ptr<ExprNode> expr)
-    : _expr(std::move(expr))
-{
-}
+    : _expr(std::move(expr)) {}
 
 const ExprNode* ReturnNode::expr() const
 {

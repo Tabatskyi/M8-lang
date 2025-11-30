@@ -1,9 +1,6 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <vector>
-
+#include "ASTVisitor.hpp"
 #include "BlockNode.hpp"
 #include "ExprNode.hpp"
 #include "StmtNode.hpp"

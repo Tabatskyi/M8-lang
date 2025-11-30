@@ -1,11 +1,7 @@
 #include "NumberNode.hpp"
 
-#include "ASTVisitor.hpp"
-
 NumberNode::NumberNode(std::int64_t value)
-    : _value(value)
-{
-}
+    : _value(value) {}
 
 std::int64_t NumberNode::value() const
 {

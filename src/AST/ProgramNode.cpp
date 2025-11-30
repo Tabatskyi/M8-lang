@@ -1,11 +1,7 @@
 #include "ProgramNode.hpp"
 
-#include "ASTVisitor.hpp"
-
 ProgramNode::ProgramNode(StmtList statements, size_t scopeId)
-    : _statements(std::move(statements)), _scopeId(scopeId)
-{
-}
+    : _statements(std::move(statements)), _scopeId(scopeId) {}
 
 const ProgramNode::StmtList& ProgramNode::statements() const
 {

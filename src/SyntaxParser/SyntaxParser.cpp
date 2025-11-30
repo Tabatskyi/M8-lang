@@ -1,24 +1,5 @@
 #include "SyntaxParser.hpp"
 
-#include "../AST/ProgramNode.hpp"
-#include "../AST/StmtNode.hpp"
-#include "../AST/BlockNode.hpp"
-#include "../AST/ReturnNode.hpp"
-#include "../AST/DeclNode.hpp"
-#include "../AST/AssignNode.hpp"
-#include "../AST/AssignFieldNode.hpp"
-#include "../AST/IfNode.hpp"
-#include "../AST/BinaryOpNode.hpp"
-#include "../AST/UnaryOpNode.hpp"
-#include "../AST/IDNode.hpp"
-#include "../AST/NumberNode.hpp"
-#include "../AST/BoolLiteralNode.hpp"
-#include "../AST/FunctionNode.hpp"
-#include "../AST/StructDecNode.hpp"
-#include "../AST/FunctionCallNode.hpp"
-#include "../AST/MemberFunctionCallNode.hpp"
-#include "../AST/FieldAccessNode.hpp"
-
 SyntaxParser::SyntaxParser(std::vector<Token> tokens): _tokens(std::move(tokens)) {}
 
 const Token* SyntaxParser::peek(size_t offset) const

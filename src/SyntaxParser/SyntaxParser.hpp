@@ -1,12 +1,30 @@
 #pragma once
 
-#include "../AST/ASTFwd.hpp"
-#include "../AST/TypeDesc.hpp"
-#include "../General/Token.hpp"
-
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "../AST/ASTFwd.hpp"
+#include "../AST/TypeDesc.hpp"
+#include "../AST/ProgramNode.hpp"
+#include "../AST/StmtNode.hpp"
+#include "../AST/BlockNode.hpp"
+#include "../AST/ReturnNode.hpp"
+#include "../AST/DeclNode.hpp"
+#include "../AST/AssignNode.hpp"
+#include "../AST/AssignFieldNode.hpp"
+#include "../AST/IfNode.hpp"
+#include "../AST/BinaryOpNode.hpp"
+#include "../AST/UnaryOpNode.hpp"
+#include "../AST/IDNode.hpp"
+#include "../AST/NumberNode.hpp"
+#include "../AST/BoolLiteralNode.hpp"
+#include "../AST/FunctionNode.hpp"
+#include "../AST/StructDecNode.hpp"
+#include "../AST/FunctionCallNode.hpp"
+#include "../AST/MemberFunctionCallNode.hpp"
+#include "../AST/FieldAccessNode.hpp"
+#include "../General/Token.hpp"
 
 class SyntaxParser
 {

@@ -1,9 +1,5 @@
 #include "FunctionCallNode.hpp"
 
-#include <utility>
-
-#include "ASTVisitor.hpp"
-
 FunctionCallNode::FunctionCallNode(std::string name, std::vector<std::unique_ptr<ExprNode>> arguments)
     : _name(std::move(name)), _arguments(std::move(arguments)) {}
 

@@ -13,19 +13,19 @@ struct TypeDesc
     ValueType builtin = ValueType::Invalid;
     std::string structName;
 
-    static TypeDesc Builtin(ValueType t)
+    static TypeDesc Builtin(ValueType type)
     {
-        TypeDesc d;
-        d.kind = Kind::Builtin;
-        d.builtin = t;
-        return d;
+        TypeDesc desc;
+        desc.kind = Kind::Builtin;
+        desc.builtin = type;
+        return desc;
     }
 
     static TypeDesc Struct(std::string name)
     {
-        TypeDesc d;
-        d.kind = Kind::Struct;
-        d.structName = std::move(name);
-        return d;
+        TypeDesc desc;
+        desc.kind = Kind::Struct;
+        desc.structName = std::move(name);
+        return desc;
     }
 };

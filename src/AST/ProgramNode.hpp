@@ -1,8 +1,6 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-
+#include "ASTVisitor.hpp"
 #include "StmtNode.hpp"
 
 class ProgramNode : public ASTNode

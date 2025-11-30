@@ -1,7 +1,5 @@
 #include "BoolLiteralNode.hpp"
 
-#include "ASTVisitor.hpp"
-
 BoolLiteralNode::BoolLiteralNode(bool value)
     : _value(value) {}
 

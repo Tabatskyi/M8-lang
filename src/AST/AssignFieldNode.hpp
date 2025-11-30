@@ -1,10 +1,9 @@
 #pragma once
 
-#include <memory>
-
 #include "ExprNode.hpp"
 #include "FieldAccessNode.hpp"
 #include "StmtNode.hpp"
+#include "ASTVisitor.hpp"
 
 class AssignFieldNode : public StmtNode
 {

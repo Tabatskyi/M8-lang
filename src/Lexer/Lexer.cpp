@@ -34,13 +34,10 @@ std::vector<Token> Lexer::tokenize(const string& source) const
         {
         case State::Start:
         {
-            if (std::isspace(uc)) { ++i; break; }
-
-            if (source[i] == '.')
-            {
-                out.push_back({ ".", TokenType::Dot });
-                ++i;
-                break;
+            if (std::isspace(uc))
+            { 
+                ++i; 
+                break; 
             }
 
             string doubleLexeme = source.substr(i, ONE_CHAR_BYTES * 2);

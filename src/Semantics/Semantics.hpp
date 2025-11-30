@@ -2,8 +2,11 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
+#include <limits>
+#include <sstream>
+#include <utility>
+#include <unordered_map>
 
 #include "../AST/ASTVisitor.hpp"
 #include "../AST/AssignFieldNode.hpp"

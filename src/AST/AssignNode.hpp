@@ -1,8 +1,6 @@
 #pragma once
 
-#include <memory>
-#include <string>
-
+#include "ASTVisitor.hpp"
 #include "ExprNode.hpp"
 #include "StmtNode.hpp"
 #include "TypeDesc.hpp"

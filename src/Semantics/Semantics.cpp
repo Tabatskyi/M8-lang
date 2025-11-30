@@ -1,9 +1,5 @@
 #include "Semantics.hpp"
 
-#include <limits>
-#include <sstream>
-#include <utility>
-
 namespace
 {
 std::string formatMessage(const std::string& message, std::size_t line)
@@ -97,11 +93,13 @@ void SemanticAnalyzer::visitFunction(const FunctionNode& node)
     info.isBuiltin = false;
     for (const auto& param : node.params())
         info.params.push_back(FunctionParamInfo{ param.type, param.name, InvalidSymbolID });
-    _functions.emplace(info.name, info);
+    auto [funcIt, inserted] = _functions.emplace(info.name, std::move(info));
+    FunctionInfo* registeredInfo = &funcIt->second;
 
     enterScope(node.scopeId());
-    for (const auto& param : node.params())
+    for (size_t idx = 0; idx < node.params().size(); ++idx)
     {
+        const auto& param = node.params()[idx];
         auto& scopeMap = _scopeSymbols[currentScopeId()];
         if (scopeMap.count(param.name))
         {
@@ -112,6 +110,8 @@ void SemanticAnalyzer::visitFunction(const FunctionNode& node)
         scopeMap.emplace(param.name, sid);
         _symbols.emplace(sid, VariableInfo{ param.type, false, param.name, currentScopeId() });
         const_cast<FunctionNode::Param&>(param).symbolId = sid;
+        if (registeredInfo && idx < registeredInfo->params.size())
+            registeredInfo->params[idx].symbolId = sid;
     }
 
     bool previousInFunction = _inFunction;

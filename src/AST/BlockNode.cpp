@@ -1,7 +1,5 @@
 #include "BlockNode.hpp"
 
-#include "ASTVisitor.hpp"
-
 BlockNode::BlockNode(StmtList statements, size_t scopeId)
     : _statements(std::move(statements)), _scopeId(scopeId) {}
 

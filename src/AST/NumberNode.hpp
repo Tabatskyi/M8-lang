@@ -1,7 +1,6 @@
 #pragma once
 
-#include <cstdint>
-
+#include "ASTVisitor.hpp"
 #include "FactorNode.hpp"
 
 class NumberNode : public FactorNode
