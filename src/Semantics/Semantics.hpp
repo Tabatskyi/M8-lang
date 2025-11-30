@@ -2,11 +2,8 @@
 
 #include <memory>
 #include <string>
-#include <vector>
-#include <limits>
-#include <sstream>
-#include <utility>
 #include <unordered_map>
+#include <vector>
 
 #include "../AST/ASTVisitor.hpp"
 #include "../AST/AssignFieldNode.hpp"
@@ -25,6 +22,7 @@
 #include "../AST/ProgramNode.hpp"
 #include "../AST/ReturnNode.hpp"
 #include "../AST/StructDecNode.hpp"
+#include "../AST/StructLiteralNode.hpp"
 #include "../AST/UnaryOpNode.hpp"
 #include "../General/Utility.hpp"
 #include "SemanticTypes.hpp"
@@ -58,6 +56,7 @@ public:
     void visitMemberFunctionCall(const MemberFunctionCallNode& node) override;
     void visitFunctionCall(const FunctionCallNode& node) override;
     void visitStructDecl(const StructDeclNode& node) override;
+    void visitStructLiteral(const StructLiteralNode& node) override;
 
 private:
     void enterScope(size_t scopeId);
@@ -73,6 +72,8 @@ private:
     void addWarning(const std::string& message, const ASTNode* node);
 
     void validateCallArguments(const std::vector<std::unique_ptr<ExprNode>>& args, const FunctionInfo& funcInfo, size_t paramStartIndex, const std::string& undeclaredVarMessage);
+
+    bool extractStructType(const ExprNode* expr, std::string& outStructName) const;
 
     const FunctionInfo* findMemberFunction(const std::string& funcName, const std::string& structName) const;
     TypeDesc resolveFieldType(SymbolID baseId, const std::vector<std::string>& fieldChain, const ASTNode* reporter);

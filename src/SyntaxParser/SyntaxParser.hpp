@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "../AST/ASTFwd.hpp"
@@ -24,6 +25,7 @@
 #include "../AST/FunctionCallNode.hpp"
 #include "../AST/MemberFunctionCallNode.hpp"
 #include "../AST/FieldAccessNode.hpp"
+#include "../AST/StructLiteralNode.hpp"
 #include "../General/Token.hpp"
 
 class SyntaxParser
@@ -53,6 +55,7 @@ public:
     std::unique_ptr<ExprNode> parseMultiplicative();
     std::unique_ptr<ExprNode> parseUnary();
     std::unique_ptr<ExprNode> parsePrimary();
+    std::unique_ptr<ExprNode> parseStructLiteral();
 
     bool hasErrors() const { return !_errors.empty(); }
     const std::vector<std::string>& errors() const { return _errors; }
@@ -61,6 +64,9 @@ private:
     bool atEnd() const;
     bool match(TokenType type);
     bool expect(TokenType type, const std::string& message);
+
+    bool canStartType(const Token* token) const;
+    bool isStructLiteralAhead() const;
 
     void skipNewlines();
     TypeDesc parseTypeDesc();
@@ -72,4 +78,5 @@ private:
     size_t _index = 0;
     std::vector<std::string> _errors;
     size_t _nextScopeId = 1;
+    std::unordered_set<std::string> _knownStructs;
 };

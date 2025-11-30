@@ -21,3 +21,4 @@ class FunctionNode;
 class FieldAccessNode;
 class FunctionCallNode;
 class MemberFunctionCallNode;
+class StructLiteralNode;

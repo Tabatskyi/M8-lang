@@ -35,6 +35,7 @@ add_executable (M8-lang
     "AST/ReturnNode.cpp"
     "AST/StmtNode.cpp"
     "AST/StructDeclNode.cpp"
+    "AST/StructLiteralNode.cpp"
     "AST/UnaryOpNode.cpp"
 )
 

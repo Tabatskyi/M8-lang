@@ -1,6 +1,13 @@
 #include "SyntaxParser.hpp"
 
-SyntaxParser::SyntaxParser(std::vector<Token> tokens): _tokens(std::move(tokens)) {}
+SyntaxParser::SyntaxParser(std::vector<Token> tokens): _tokens(std::move(tokens))
+{
+    for (size_t i = 0; i + 1 < _tokens.size(); ++i)
+    {
+        if (_tokens[i].type == TokenType::Struct && _tokens[i + 1].type == TokenType::Identifier)
+            _knownStructs.insert(_tokens[i + 1].lexeme);
+    }
+}
 
 const Token* SyntaxParser::peek(size_t offset) const
 {
@@ -312,12 +319,46 @@ std::unique_ptr<DeclNode> SyntaxParser::parseDecl()
     if (!expect(TokenType::Assign, "Expected assignment colon (᛬) in declaration"))
         return nullptr;
 
-    std::unique_ptr<ExprNode> initializer = parseExpr();
-    if (!initializer) return nullptr;
+    std::unique_ptr<ExprNode> initializer;
+    TypeDesc declaredType = TypeDesc::Builtin(ValueType::Invalid);
+
+    if (isStructLiteralAhead())
+    {
+        initializer = parseStructLiteral();
+    }
+    else
+    {
+        size_t savedIndex = _index;
+        if (canStartType(peek()))
+        {
+            TypeDesc potentialType = parseTypeDesc();
+            if (match(TokenType::Assign))
+            {
+                declaredType = potentialType;
+                initializer = parseExpr();
+            }
+            else
+            {
+                _index = savedIndex;
+            }
+        }
+
+        if (!initializer)
+            initializer = parseExpr();
+    }
+
+    if (!initializer)
+        return nullptr;
+
+    if (declaredType.kind == TypeDesc::Kind::Builtin && declaredType.builtin == ValueType::Invalid)
+    {
+        if (auto* literal = dynamic_cast<StructLiteralNode*>(initializer.get()))
+            declaredType = literal->structType();
+    }
 
     std::vector<std::unique_ptr<ExprNode>> inits;
     inits.push_back(std::move(initializer));
-    return std::make_unique<DeclNode>(TypeDesc::Builtin(ValueType::Invalid), std::move(identifier), isMutable, std::move(inits));
+    return std::make_unique<DeclNode>(declaredType, std::move(identifier), isMutable, std::move(inits));
 }
 
 TypeDesc SyntaxParser::parseTypeDesc()
@@ -555,6 +596,9 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
     {
         case TokenType::Identifier:
         {
+            if (isStructLiteralAhead())
+                return parseStructLiteral();
+
             std::string name = token->lexeme;
             eat();
 
@@ -711,6 +755,41 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
     }
 }
 
+std::unique_ptr<ExprNode> SyntaxParser::parseStructLiteral()
+{
+    const Token* typeTok = peek();
+    if (!typeTok || typeTok->type != TokenType::Identifier)
+    {
+        addError("Struct literal requires a struct type name");
+        return nullptr;
+    }
+
+    std::string structName = typeTok->lexeme;
+    eat();
+    TypeDesc literalType = TypeDesc::Struct(structName);
+
+    if (!expect(TokenType::LParen, "Expected '(' after struct literal type"))
+        return nullptr;
+
+    std::vector<std::unique_ptr<ExprNode>> args;
+    if (!match(TokenType::RParen))
+    {
+        while (true)
+        {
+            std::unique_ptr<ExprNode> arg = parseExpr();
+            if (!arg)
+                return nullptr;
+            args.push_back(std::move(arg));
+            if (match(TokenType::RParen))
+                break;
+            if (!expect(TokenType::StmtSep, "Expected 'ᛵ' between struct literal arguments"))
+                return nullptr;
+        }
+    }
+
+    return std::make_unique<StructLiteralNode>(std::move(literalType), std::move(args));
+}
+
 bool SyntaxParser::atEnd() const
 {
     return _index >= _tokens.size() || (_tokens[_index].type == TokenType::EndOfFile);
@@ -734,6 +813,33 @@ bool SyntaxParser::expect(TokenType type, const std::string& message)
 
     addError(message);
     return false;
+}
+
+bool SyntaxParser::canStartType(const Token* token) const
+{
+    if (!token)
+        return false;
+    switch (token->type)
+    {
+    case TokenType::I32:
+    case TokenType::I64:
+    case TokenType::Bool:
+    case TokenType::Identifier:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool SyntaxParser::isStructLiteralAhead() const
+{
+    const Token* token = peek();
+    if (!token || token->type != TokenType::Identifier)
+        return false;
+    if (!_knownStructs.count(token->lexeme))
+        return false;
+    const Token* next = peek(1);
+    return next && next->type == TokenType::LParen;
 }
 
 void SyntaxParser::skipNewlines()

@@ -24,4 +24,5 @@ public:
 	virtual void visitFieldAccess(const FieldAccessNode& node) = 0;
 	virtual void visitFunctionCall(const FunctionCallNode& node) = 0;
 	virtual void visitMemberFunctionCall(const MemberFunctionCallNode& node) = 0;
+	virtual void visitStructLiteral(const StructLiteralNode& node) = 0;
 };

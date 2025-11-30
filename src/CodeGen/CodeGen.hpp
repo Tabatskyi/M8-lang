@@ -27,6 +27,7 @@
 #include "../AST/ProgramNode.hpp"
 #include "../AST/ReturnNode.hpp"
 #include "../AST/StructDecNode.hpp"
+#include "../AST/StructLiteralNode.hpp"
 #include "../AST/UnaryOpNode.hpp"
 #include "../Semantics/SemanticTypes.hpp"
 #include "../General/Utility.hpp"

@@ -19,9 +19,13 @@ stmt           = var_decl
 
 expr_stmt      = expr ;
 
-(* Declarations: ᚡname᛬expr and ᛍname᛬expr  *)
-var_decl       = ( "ᚡ" )  , ident , "᛬" , expr ;
-const_decl     = ( "ᛍ" ) , ident , "᛬" , expr ;
+(* Declarations now allow optional type annotations and struct literals. *)
+var_decl       = "ᚡ" , ident , "᛬" , decl_initializer ;
+const_decl     = "ᛍ" , ident , "᛬" , decl_initializer ;
+
+decl_initializer = struct_literal
+			 | [ type , "᛬" ] , expr
+			 ;
 
 (* Return statement: optionally carries a value *)
 return_stmt    = ( "ᚷ" ) , [ expr ] ;
@@ -81,7 +85,16 @@ mul_op         = "᛫" | "ᛇ"
 
 unary          = [ ( "ᛧ" | "ᛅ" ) ] , primary ;
 
-primary        = int_lit | bool_lit | builtin_func_call | ident | "ᚮ" , expr , "ᚭ" ;
+primary        = int_lit
+			 | bool_lit
+			 | builtin_func_call
+			 | struct_literal
+			 | ident
+			 | "ᚮ" , expr , "ᚭ"
+			 ;
+
+struct_literal = type , "ᚮ" , [ struct_arg_list ] , "ᚭ" ;
+struct_arg_list = expr , { "ᛵ" , expr } ;
 
 (* Builtin I/O functions *
 	- ᚱ(expr) : read input, returns integer/bool depending on context
@@ -113,6 +126,9 @@ letter         = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K"
 				;
 
 digit          = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+lbrace         = "ᚮ" ;
+rbrace         = "ᚭ" ;
 
 (*
 	Notes:

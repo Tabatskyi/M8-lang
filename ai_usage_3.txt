@@ -1,0 +1,2 @@
+Tabatskyi: add e2e tests for creation of structs and calling members/functions
+
