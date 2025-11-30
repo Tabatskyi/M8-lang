@@ -4,9 +4,7 @@
 #include <vector>
 
 ASTCloner::ASTCloner(TemplateSubstitution substitution, ScopeAllocator allocator)
-    : _subst(std::move(substitution)), _scopeAllocator(std::move(allocator))
-{
-}
+    : _subst(std::move(substitution)), _scopeAllocator(std::move(allocator)) {}
 
 std::unique_ptr<FunctionNode> ASTCloner::cloneFunction(const FunctionNode& original, std::string newName)
 {
