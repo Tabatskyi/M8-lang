@@ -40,6 +40,7 @@ static std::unordered_map<string, TokenType> keywordMap =
     {"ᛰ", TokenType::I32},
     {"ᛯ", TokenType::I64},
     {"ᛨ", TokenType::Bool},
+    {"ꑭ", TokenType::String},
     {"ᚷ", TokenType::Return},
     {"ᚡ", TokenType::Var},
     {"ᛍ", TokenType::Const},

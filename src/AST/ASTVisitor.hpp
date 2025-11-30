@@ -19,6 +19,7 @@ public:
 	virtual void visitID(const IDNode& node) = 0;
 	virtual void visitNumber(const NumberNode& node) = 0;
 	virtual void visitBoolLiteral(const BoolLiteralNode& node) = 0;
+	virtual void visitStringLiteral(const StringLiteralNode& node) = 0;
 	virtual void visitStructDecl(const StructDeclNode& node) = 0;
 	virtual void visitFunction(const FunctionNode& node) = 0;
 	virtual void visitFieldAccess(const FieldAccessNode& node) = 0;

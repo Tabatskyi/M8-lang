@@ -16,6 +16,7 @@
 #include "../AST/BinaryOpNode.hpp"
 #include "../AST/BlockNode.hpp"
 #include "../AST/BoolLiteralNode.hpp"
+#include "../AST/StringLiteralNode.hpp"
 #include "../AST/DeclNode.hpp"
 #include "../AST/FieldAccessNode.hpp"
 #include "../AST/FunctionCallNode.hpp"
@@ -58,6 +59,14 @@ struct CodegenVariable
 class CodeGenerator : public ASTVisitor
 {
 public:
+    struct StringLiteralInfo
+    {
+        std::string globalName;
+        std::string encodedValue;
+        size_t length = 0;
+        bool emitted = false;
+    };
+
     CodeGenerator(IRContext& ctx,
                   const std::unordered_map<SymbolID, VariableInfo>& symbols,
                   const StructTable& structs,
@@ -83,7 +92,10 @@ public:
     void visitID(const IDNode& node) override;
     void visitNumber(const NumberNode& node) override;
     void visitBoolLiteral(const BoolLiteralNode& node) override;
+    void visitStringLiteral(const StringLiteralNode& node) override;
     void visitStructLiteral(const StructLiteralNode& node) override;
+
+    void emitStringLiteralGlobals();
 
 private:
     void generateFunction(const FunctionNode& func);
@@ -107,6 +119,8 @@ private:
     bool handleBuiltinFunctionCall(const FunctionCallNode& node, const FunctionInfo& info);
     void emitStructDefinition(const StructDeclNode& node);
     void emitStructDefinition(const StructInfo& info);
+    const StringLiteralInfo& internStringLiteral(const std::string& literal);
+    std::string formatPointer(const std::string& symbol, size_t length);
 
     IRContext& _ctx;
     std::unordered_map<SymbolID, CodegenVariable> _variables;
@@ -122,4 +136,6 @@ private:
     std::string _currentMemberMaster;
     std::string _currentMemberFunctionName;
     SymbolID _selfSymbolId = InvalidSymbolID;
+    std::unordered_map<std::string, StringLiteralInfo> _stringLiterals;
+    int _stringLiteralCounter = 0;
 };

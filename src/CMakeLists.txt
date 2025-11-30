@@ -33,6 +33,7 @@ add_executable (M8-lang
     "AST/NumberNode.cpp"
     "AST/ProgramNode.cpp"
     "AST/ReturnNode.cpp"
+    "AST/StringLiteralNode.cpp"
     "AST/StmtNode.cpp"
     "AST/StructDeclNode.cpp"
     "AST/StructLiteralNode.cpp"

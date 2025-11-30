@@ -14,6 +14,7 @@ class IfNode;
 class IDNode;
 class NumberNode;
 class BoolLiteralNode;
+class StringLiteralNode;
 class BinaryOpNode;
 class UnaryOpNode;
 class StructDeclNode;

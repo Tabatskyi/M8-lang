@@ -1,6 +1,50 @@
 #include "CodeGen.hpp"
 
+#include <iomanip>
+
 using std::string;
+
+namespace
+{
+constexpr std::size_t kFmtWriteI32Len = 4;
+constexpr std::size_t kFmtWriteI64Len = 6;
+constexpr std::size_t kFmtWriteStringLen = 4;
+constexpr std::size_t kFmtReadI32Len = 3;
+constexpr std::size_t kFmtReadI64Len = 5;
+constexpr std::size_t kFmtReadStringLen = 7;
+constexpr std::size_t kStringReadBufferBytes = 1024;
+
+std::string encodeStringLiteral(const std::string& value)
+{
+	std::ostringstream oss;
+	oss << "c\"";
+	for (unsigned char ch : value)
+	{
+		switch (ch)
+		{
+		case '\n': oss << "\\0A"; break;
+		case '\t': oss << "\\09"; break;
+		case '\r': oss << "\\0D"; break;
+		case '\"': oss << "\\22"; break;
+		case '\\': oss << "\\5C"; break;
+		default:
+			if (ch >= 32 && ch <= 126)
+			{
+				oss << static_cast<char>(ch);
+			}
+			else
+			{
+				std::ostringstream hex;
+				hex << std::uppercase << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(ch);
+				oss << "\\" << hex.str();
+			}
+			break;
+		}
+	}
+	oss << "\\00\"";
+	return oss.str();
+}
+}
 
 CodeGenerator::CodeGenerator(IRContext& ctx,
 							 const std::unordered_map<SymbolID, VariableInfo>& symbols,
@@ -749,6 +793,13 @@ void CodeGenerator::visitBoolLiteral(const BoolLiteralNode& node)
 	pushValue({ node.value() ? "1" : "0", false, ValueType::Bool, "" });
 }
 
+void CodeGenerator::visitStringLiteral(const StringLiteralNode& node)
+{
+	const auto& info = internStringLiteral(node.value());
+	std::string ptr = formatPointer(info.globalName, info.length);
+	pushValue({ ptr, false, ValueType::String, "" });
+}
+
 void CodeGenerator::visitStructLiteral(const StructLiteralNode& node)
 {
 	if (node.structType().kind != TypeDesc::Kind::Struct)
@@ -822,6 +873,7 @@ std::string CodeGenerator::llvmType(ValueType type) const
 	case ValueType::I32: return "i32";
 	case ValueType::I64: return "i64";
 	case ValueType::Bool: return "i1";
+	case ValueType::String: return "i8*";
 	default: return "i32";
 	}
 }
@@ -834,6 +886,8 @@ std::string CodeGenerator::zeroLiteral(ValueType type) const
 	case ValueType::I64:
 	case ValueType::Bool:
 		return "0";
+	case ValueType::String:
+		return "null";
 	default:
 		return "0";
 	}
@@ -1072,31 +1126,111 @@ bool CodeGenerator::handleBuiltinFunctionCall(const FunctionCallNode& node, cons
 {
 	if (info.name == "__builtin_write")
 	{
-		CodegenValue value{ "0", false, ValueType::I32, "" };
-		if (!node.args().empty() && node.args()[0])
+		if (node.args().empty() || !node.args()[0])
 		{
-			node.args()[0]->accept(*this);
-			value = popValue();
-			value = ensureType(std::move(value), ValueType::I32);
+			pushValue({ "0", false, ValueType::I32, "" });
+			return true;
 		}
-		std::string fmtPtr = nextTemp();
-		emitInstruction(fmtPtr + " = getelementptr [4 x i8], [4 x i8]* @fmt_write, i32 0, i32 0");
-		emitInstruction("call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + value.operand + ")");
-		pushValue(std::move(value));
-		return true;
+
+		node.args()[0]->accept(*this);
+		CodegenValue value = popValue();
+		ValueType argType = node.args()[0]->type();
+		std::string callTmp;
+		switch (argType)
+		{
+		case ValueType::I64:
+		{
+			value = ensureType(std::move(value), ValueType::I64);
+			std::string fmtPtr = formatPointer("@fmt_write_i64", kFmtWriteI64Len);
+			callTmp = nextTemp();
+			emitInstruction(callTmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i64 " + value.operand + ")");
+			pushValue({ callTmp, false, ValueType::I32, "" });
+			return true;
+		}
+		case ValueType::Bool:
+		{
+			value = ensureType(std::move(value), ValueType::Bool);
+			std::string widened = nextTemp();
+			emitInstruction(widened + " = zext i1 " + value.operand + " to i32");
+			std::string fmtPtr = formatPointer("@fmt_write_i32", kFmtWriteI32Len);
+			callTmp = nextTemp();
+			emitInstruction(callTmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + widened + ")");
+			pushValue({ callTmp, false, ValueType::I32, "" });
+			return true;
+		}
+		case ValueType::String:
+		{
+			value = ensureType(std::move(value), ValueType::String);
+			std::string fmtPtr = formatPointer("@fmt_write_str", kFmtWriteStringLen);
+			callTmp = nextTemp();
+			emitInstruction(callTmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i8* " + value.operand + ")");
+			pushValue({ callTmp, false, ValueType::I32, "" });
+			return true;
+		}
+		case ValueType::I32:
+		default:
+		{
+			value = ensureType(std::move(value), ValueType::I32);
+			std::string fmtPtr = formatPointer("@fmt_write_i32", kFmtWriteI32Len);
+			callTmp = nextTemp();
+			emitInstruction(callTmp + " = call i32 (i8*, ...) @printf(i8* " + fmtPtr + ", i32 " + value.operand + ")");
+			pushValue({ callTmp, false, ValueType::I32, "" });
+			return true;
+		}
+		}
 	}
 
 	if (info.name == "__builtin_read")
 	{
-		std::string slot = nextTemp();
-		emitInstruction(slot + " = alloca i32");
-		std::string fmtPtr = nextTemp();
-		emitInstruction(fmtPtr + " = getelementptr [3 x i8], [3 x i8]* @fmt_read, i32 0, i32 0");
-		emitInstruction("call i32 (i8*, ...) @scanf(i8* " + fmtPtr + ", i32* " + slot + ")");
-		std::string loaded = nextTemp();
-		emitInstruction(loaded + " = load i32, i32* " + slot);
-		pushValue({ loaded, false, ValueType::I32, "" });
-		return true;
+		ValueType targetType = node.type();
+		switch (targetType)
+		{
+		case ValueType::I64:
+		{
+			std::string slot = nextTemp();
+			emitInstruction(slot + " = alloca i64");
+			std::string fmtPtr = formatPointer("@fmt_read_i64", kFmtReadI64Len);
+			emitInstruction("call i32 (i8*, ...) @scanf(i8* " + fmtPtr + ", i64* " + slot + ")");
+			std::string loaded = nextTemp();
+			emitInstruction(loaded + " = load i64, i64* " + slot);
+			pushValue({ loaded, false, ValueType::I64, "" });
+			return true;
+		}
+		case ValueType::Bool:
+		{
+			std::string slot = nextTemp();
+			emitInstruction(slot + " = alloca i32");
+			std::string fmtPtr = formatPointer("@fmt_read_i32", kFmtReadI32Len);
+			emitInstruction("call i32 (i8*, ...) @scanf(i8* " + fmtPtr + ", i32* " + slot + ")");
+			std::string loaded = nextTemp();
+			emitInstruction(loaded + " = load i32, i32* " + slot);
+			std::string cmp = nextTemp();
+			emitInstruction(cmp + " = icmp ne i32 " + loaded + ", 0");
+			pushValue({ cmp, false, ValueType::Bool, "" });
+			return true;
+		}
+		case ValueType::String:
+		{
+			std::string buffer = nextTemp();
+			emitInstruction(buffer + " = call i8* @malloc(i64 " + std::to_string(kStringReadBufferBytes) + ")");
+			std::string fmtPtr = formatPointer("@fmt_read_str", kFmtReadStringLen);
+			emitInstruction("call i32 (i8*, ...) @scanf(i8* " + fmtPtr + ", i8* " + buffer + ")");
+			pushValue({ buffer, false, ValueType::String, "" });
+			return true;
+		}
+		case ValueType::I32:
+		default:
+		{
+			std::string slot = nextTemp();
+			emitInstruction(slot + " = alloca i32");
+			std::string fmtPtr = formatPointer("@fmt_read_i32", kFmtReadI32Len);
+			emitInstruction("call i32 (i8*, ...) @scanf(i8* " + fmtPtr + ", i32* " + slot + ")");
+			std::string loaded = nextTemp();
+			emitInstruction(loaded + " = load i32, i32* " + slot);
+			pushValue({ loaded, false, ValueType::I32, "" });
+			return true;
+		}
+		}
 	}
 
 	return false;
@@ -1145,4 +1279,37 @@ void CodeGenerator::emitStructDefinition(const StructInfo& info)
 			_ctx.ir << "%struct." << info.fields[i].type.structName;
 	}
 	_ctx.ir << "}\n";
+}
+
+const CodeGenerator::StringLiteralInfo& CodeGenerator::internStringLiteral(const std::string& literal)
+{
+	auto it = _stringLiterals.find(literal);
+	if (it != _stringLiterals.end())
+		return it->second;
+
+	StringLiteralInfo info;
+	info.globalName = "@.str." + std::to_string(_stringLiteralCounter++);
+	info.length = literal.size() + 1;
+	info.encodedValue = encodeStringLiteral(literal);
+	info.emitted = false;
+	auto [insertedIt, _] = _stringLiterals.emplace(literal, std::move(info));
+	return insertedIt->second;
+}
+
+std::string CodeGenerator::formatPointer(const std::string& symbol, size_t length)
+{
+	std::string tmp = nextTemp();
+	emitInstruction(tmp + " = getelementptr [" + std::to_string(length) + " x i8], [" + std::to_string(length) + " x i8]* " + symbol + ", i32 0, i32 0");
+	return tmp;
+}
+
+void CodeGenerator::emitStringLiteralGlobals()
+{
+	for (auto& [literal, info] : _stringLiterals)
+	{
+		if (info.emitted)
+			continue;
+		_ctx.ir << info.globalName << " = private unnamed_addr constant [" << info.length << " x i8] " << info.encodedValue << "\n";
+		info.emitted = true;
+	}
 }

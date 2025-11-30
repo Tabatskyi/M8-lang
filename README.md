@@ -7,14 +7,14 @@ No whitespaces, unreadable code, very esoteric
 
 - No whitespace is allowed anywhere in source programs.
 - Statements are separated only by the single-character separator `ᛵ` or EOF.
-- Types: primitive `i32` (`ᛰ`), `i64` (`ᛯ`), `bool` (`ᛨ`), plus user-defined struct types.
+- Types: primitive `i32` (`ᛰ`), `i64` (`ᛯ`), `bool` (`ᛨ`), `string` (`ꑭ`), plus user-defined struct types.
 - Declarations: mutable variables (`ᚡ`), constants (`ᛍ`) format: `ᚡname᛬expr` and `ᛍname᛬expr`.
 - Assignments and compound assignments.
 - Expressions with precedence and comparison operators (`᛬᛬`, `ᛅ᛬`, `ᚲ`, `ᚲ᛬`) (some may be not implemented yet).
 - Checked arithmetic operators using a prefix `ꑭ` (e.g., `ꑭ᛭`, `ꑭᛧ`, `ꑭ᛫`, `ꑭᛇ`) (not implemented yet).
 - If/else without blocks; uses a single-character THEN separator `ᛜ` between condition and consequent.
 - Return statement: `ᚷ` optionally followed by an expression.
-- Integer and boolean literals.
+- Integer, boolean, and string literals (strings use the quote rune `ᛌliteralᛌ` with C-style escapes `\n`, `\t`, `\r`, `\\`, `\0`, and `\ᛌ`).
 
 ### Functions
 
@@ -32,8 +32,8 @@ No whitespaces, unreadable code, very esoteric
 
 ### Standard I/O functions
 
-- `ᚱ(expr)` – input: evaluates `expr` as a prompt/target and reads a value from standard input; result type depends on context (typically integer or bool).
-- `ᚹ(expr)` – output: evaluates `expr` and writes its value to standard output (print/println equivalent).
+- `ᚱᚮᚭ` – input: returns a value based on the expected type of the surrounding expression. When assigned to `ꑭ` variables it reads a string, when assigned to `i32`, `i64`, or `bool` it reads the corresponding numeric value (`bool` reads integers and treats non-zero as true).
+- `ᚹᚮexprᚭ` – output: evaluates `expr` and writes it with a trailing newline. Supports `i32`, `i64`, `bool`, and `string` expressions; bools print as `0/1` for now.
 
 ### Compile and run:
 1. `cmake .`

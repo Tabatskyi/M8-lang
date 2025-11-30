@@ -20,6 +20,7 @@
 #include "../AST/IDNode.hpp"
 #include "../AST/NumberNode.hpp"
 #include "../AST/BoolLiteralNode.hpp"
+#include "../AST/StringLiteralNode.hpp"
 #include "../AST/FunctionNode.hpp"
 #include "../AST/StructDecNode.hpp"
 #include "../AST/FunctionCallNode.hpp"

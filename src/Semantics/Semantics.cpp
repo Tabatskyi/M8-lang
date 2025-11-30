@@ -2,6 +2,30 @@
 
 namespace
 {
+class ExpectedValueScope
+{
+public:
+    ExpectedValueScope(std::vector<ValueType>& stack, ValueType type)
+        : _stack(stack)
+    {
+        if (type != ValueType::Invalid)
+        {
+            _stack.push_back(type);
+            _active = true;
+        }
+    }
+
+    ~ExpectedValueScope()
+    {
+        if (_active)
+            _stack.pop_back();
+    }
+
+private:
+    std::vector<ValueType>& _stack;
+    bool _active = false;
+};
+
 std::string formatMessage(const std::string& message, std::size_t line)
 {
     if (!line)
@@ -152,7 +176,13 @@ void SemanticAnalyzer::visitDecl(const DeclNode& node)
     {
         initializer = node.initializers().front().get();
         if (initializer)
+        {
+            ValueType expected = ValueType::Invalid;
+            if (node.declaredType().kind == TypeDesc::Kind::Builtin)
+                expected = node.declaredType().builtin;
+            ExpectedValueScope scope(_expectedValueStack, expected);
             initializer->accept(*this);
+        }
     }
 
     TypeDesc resolvedType = node.declaredType();
@@ -222,6 +252,13 @@ void SemanticAnalyzer::visitAssign(const AssignNode& node)
 
     if (const ExprNode* value = node.value())
     {
+        ValueType expected = ValueType::Invalid;
+        if (targetVar && targetVar->type.kind == TypeDesc::Kind::Builtin)
+            expected = targetVar->type.builtin;
+        else if (memberField && memberField->type.kind == TypeDesc::Kind::Builtin)
+            expected = memberField->type.builtin;
+
+        ExpectedValueScope scope(_expectedValueStack, expected);
         value->accept(*this);
         if (targetVar)
         {
@@ -280,6 +317,11 @@ void SemanticAnalyzer::visitAssignField(const AssignFieldNode& node)
 
     if (const ExprNode* value = node.value())
     {
+        ValueType expected = ValueType::Invalid;
+        if (fieldType.kind == TypeDesc::Kind::Builtin)
+            expected = fieldType.builtin;
+
+        ExpectedValueScope scope(_expectedValueStack, expected);
         value->accept(*this);
         if (fieldType.kind == TypeDesc::Kind::Builtin)
         {
@@ -323,6 +365,18 @@ void SemanticAnalyzer::visitReturn(const ReturnNode& node)
         return;
     }
 
+    ValueType expected = ValueType::Invalid;
+    if (_inFunction)
+    {
+        if (_currentFunctionReturn.kind == TypeDesc::Kind::Builtin)
+            expected = _currentFunctionReturn.builtin;
+    }
+    else
+    {
+        expected = ValueType::I32;
+    }
+
+    ExpectedValueScope scope(_expectedValueStack, expected);
     node.expr()->accept(*this);
     if (_inFunction)
     {
@@ -464,6 +518,11 @@ void SemanticAnalyzer::visitBoolLiteral(const BoolLiteralNode& node)
     const_cast<BoolLiteralNode&>(node).setType(ValueType::Bool);
 }
 
+void SemanticAnalyzer::visitStringLiteral(const StringLiteralNode& node)
+{
+    const_cast<StringLiteralNode&>(node).setType(ValueType::String);
+}
+
 void SemanticAnalyzer::visitStructLiteral(const StructLiteralNode& node)
 {
     if (node.structType().kind != TypeDesc::Kind::Struct)
@@ -489,8 +548,12 @@ void SemanticAnalyzer::visitStructLiteral(const StructLiteralNode& node)
         const ExprNode* arg = node.args()[i].get();
         if (!arg)
             continue;
-        arg->accept(*this);
         const auto& field = fields[i];
+        ValueType expected = ValueType::Invalid;
+        if (field.type.kind == TypeDesc::Kind::Builtin)
+            expected = field.type.builtin;
+        ExpectedValueScope scope(_expectedValueStack, expected);
+        arg->accept(*this);
         if (field.type.kind == TypeDesc::Kind::Builtin)
         {
             if (!isAssignable(field.type.builtin, arg->type()))
@@ -554,6 +617,17 @@ void SemanticAnalyzer::visitFunctionCall(const FunctionCallNode& node)
     }
 
     const FunctionInfo& func = funcIt->second;
+    if (func.isBuiltin)
+    {
+        if (func.name == "__builtin_read")
+            analyzeBuiltinRead(node);
+        else if (func.name == "__builtin_write")
+            analyzeBuiltinWrite(node);
+        else
+            addError("Unknown builtin function '" + func.name + "'", node);
+        return;
+    }
+
     if (node.args().size() != func.params.size())
     {
         addError("Function '" + node.name() + "' called with wrong number of arguments", node);
@@ -684,7 +758,17 @@ void SemanticAnalyzer::validateCallArguments(const std::vector<std::unique_ptr<E
         if (!arg)
             continue;
 
+        ValueType expected = ValueType::Invalid;
+        if (paramStartIndex + i < funcInfo.params.size())
+        {
+            const auto& param = funcInfo.params[paramStartIndex + i];
+            if (param.type.kind == TypeDesc::Kind::Builtin)
+                expected = param.type.builtin;
+        }
+
+        ExpectedValueScope scope(_expectedValueStack, expected);
         arg->accept(*this);
+
         if (paramStartIndex + i >= funcInfo.params.size())
         {
             addError("Argument type mismatch at position " + std::to_string(i), arg);
@@ -710,6 +794,11 @@ void SemanticAnalyzer::validateCallArguments(const std::vector<std::unique_ptr<E
             }
         }
     }
+}
+
+ValueType SemanticAnalyzer::currentExpectedValue() const
+{
+    return _expectedValueStack.empty() ? ValueType::Invalid : _expectedValueStack.back();
 }
 
 bool SemanticAnalyzer::extractStructType(const ExprNode* expr, std::string& outStructName) const
@@ -864,6 +953,70 @@ bool SemanticAnalyzer::ensureFieldChainMutable(const VariableInfo& baseVar,
     }
 
     return true;
+}
+
+void SemanticAnalyzer::analyzeBuiltinRead(const FunctionCallNode& node)
+{
+    for (const auto& arg : node.args())
+    {
+        if (arg)
+            arg->accept(*this);
+    }
+
+    if (!node.args().empty())
+        addError("Builtin read does not accept arguments", node);
+
+    ValueType expected = currentExpectedValue();
+    switch (expected)
+    {
+    case ValueType::Bool:
+    case ValueType::I32:
+    case ValueType::I64:
+    case ValueType::String:
+        const_cast<FunctionCallNode&>(node).setType(expected);
+        break;
+    default:
+        const_cast<FunctionCallNode&>(node).setType(ValueType::I32);
+        break;
+    }
+}
+
+void SemanticAnalyzer::analyzeBuiltinWrite(const FunctionCallNode& node)
+{
+    if (node.args().size() != 1)
+    {
+        addError("Builtin write requires exactly one argument", node);
+        for (const auto& arg : node.args())
+        {
+            if (arg)
+                arg->accept(*this);
+        }
+        const_cast<FunctionCallNode&>(node).setType(ValueType::Invalid);
+        return;
+    }
+
+    const ExprNode* arg = node.args()[0].get();
+    if (!arg)
+    {
+        const_cast<FunctionCallNode&>(node).setType(ValueType::Invalid);
+        return;
+    }
+
+    arg->accept(*this);
+    ValueType argType = arg->type();
+    switch (argType)
+    {
+    case ValueType::Bool:
+    case ValueType::I32:
+    case ValueType::I64:
+    case ValueType::String:
+        const_cast<FunctionCallNode&>(node).setType(ValueType::I32);
+        return;
+    default:
+        addError("Builtin write supports bool, integer, or string arguments", arg);
+        const_cast<FunctionCallNode&>(node).setType(ValueType::Invalid);
+        return;
+    }
 }
 
 void SemanticAnalyzer::registerBuiltins()

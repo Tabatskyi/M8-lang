@@ -8,6 +8,7 @@
 #include "BinaryOpNode.hpp"
 #include "BlockNode.hpp"
 #include "BoolLiteralNode.hpp"
+#include "StringLiteralNode.hpp"
 #include "DeclNode.hpp"
 #include "ExprNode.hpp"
 #include "FactorNode.hpp"

@@ -8,7 +8,8 @@ enum class ValueType
     Invalid,
     I32,
     I64,
-    Bool
+    Bool,
+    String
 };
 
 using SymbolID = size_t;
@@ -32,6 +33,8 @@ inline ValueType comparisonOperandType(ValueType lhs, ValueType rhs)
 {
     if (lhs == ValueType::Bool && rhs == ValueType::Bool)
         return ValueType::Bool;
+    if (lhs == ValueType::String && rhs == ValueType::String)
+        return ValueType::String;
     return widerType(lhs, rhs);
 }
 
@@ -58,6 +61,7 @@ inline std::string typeToString(ValueType type)
     case ValueType::I32: return "i32";
     case ValueType::I64: return "i64";
     case ValueType::Bool: return "bool";
+    case ValueType::String: return "string";
     default: return "<invalid>";
     }
 }

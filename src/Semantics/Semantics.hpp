@@ -14,6 +14,7 @@
 #include "../AST/BinaryOpNode.hpp"
 #include "../AST/BlockNode.hpp"
 #include "../AST/BoolLiteralNode.hpp"
+#include "../AST/StringLiteralNode.hpp"
 #include "../AST/DeclNode.hpp"
 #include "../AST/FieldAccessNode.hpp"
 #include "../AST/FunctionCallNode.hpp"
@@ -55,6 +56,7 @@ public:
     void visitID(const IDNode& node) override;
     void visitNumber(const NumberNode& node) override;
     void visitBoolLiteral(const BoolLiteralNode& node) override;
+    void visitStringLiteral(const StringLiteralNode& node) override;
     void visitFieldAccess(const FieldAccessNode& node) override;
     void visitMemberFunctionCall(const MemberFunctionCallNode& node) override;
     void visitFunctionCall(const FunctionCallNode& node) override;
@@ -82,6 +84,9 @@ private:
     TypeDesc resolveFieldType(SymbolID baseId, const std::vector<std::string>& fieldChain, const ASTNode* reporter);
     bool ensureFieldChainMutable(const VariableInfo& baseVar, const std::vector<std::string>& fieldChain, const ASTNode* reporter);
     void registerBuiltins();
+    void analyzeBuiltinRead(const FunctionCallNode& node);
+    void analyzeBuiltinWrite(const FunctionCallNode& node);
+    ValueType currentExpectedValue() const;
 
     std::vector<std::string> _errors;
     std::vector<std::string> _warnings;
@@ -95,4 +100,5 @@ private:
     bool _returnSeen = false;
     TypeDesc _currentFunctionReturn{ TypeDesc::Builtin(ValueType::Invalid) };
     std::string _currentMemberMaster;
+    std::vector<ValueType> _expectedValueStack;
 };

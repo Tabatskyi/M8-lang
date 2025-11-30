@@ -57,17 +57,24 @@ int main(int argc, char** argv)
 
     IRContext ctx;
     ctx.ir << "declare i32 @printf(i8*, ...)\n";
-    ctx.ir << "declare i32 @scanf(i8*, ...)\n\n";
+    ctx.ir << "declare i32 @scanf(i8*, ...)\n";
+    ctx.ir << "declare i8* @malloc(i64)\n\n";
     ctx.ir << "@fmt_exit = private constant [29 x i8] c\"Program exit with result %d\\0A\\00\"\n";
-    ctx.ir << "@fmt_write = private constant [4 x i8] c\"%d\\0A\\00\"\n";
-    ctx.ir << "@fmt_read = private constant [3 x i8] c\"%d\\00\"\n\n";
+    ctx.ir << "@fmt_write_i32 = private constant [4 x i8] c\"%d\\0A\\00\"\n";
+    ctx.ir << "@fmt_write_i64 = private constant [6 x i8] c\"%lld\\0A\\00\"\n";
+    ctx.ir << "@fmt_write_str = private constant [4 x i8] c\"%s\\0A\\00\"\n";
+    ctx.ir << "@fmt_read_i32 = private constant [3 x i8] c\"%d\\00\"\n";
+    ctx.ir << "@fmt_read_i64 = private constant [5 x i8] c\"%lld\\00\"\n";
+    ctx.ir << "@fmt_read_str = private constant [7 x i8] c\"%1023s\\00\"\n\n";
 
     CodeGenerator generator(ctx, semantic.symbols(), semantic.structs(), semantic.functions());
     generator.emitTopLevel(*program);
+    generator.emitStringLiteralGlobals();
 
     ctx.ir << "define i32 @main() {\n";
     generator.generate(*program);
     ctx.ir << "}\n";
+    generator.emitStringLiteralGlobals();
 
     string filename;
     if (argc >= 3)

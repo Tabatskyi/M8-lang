@@ -31,7 +31,7 @@ decl_initializer = struct_literal
 return_stmt    = ( "ᚷ" ) , [ expr ] ;
 
 (* Types: primitive and user-defined struct types *)
-type           = "ᛰ" | "ᛯ" | "ᛨ" | ident ;
+type           = "ᛰ" | "ᛯ" | "ᛨ" | "ꑭ" | ident ;
 
 (* Function declarations *
 	- Global function:       ᚠname᛬( args )᛬retType᛬body
@@ -74,19 +74,18 @@ relation       = addition , { ( "ᚲ" | "ᚲ᛬" ) , addition } ;
 addition       = multiplication , { add_op , multiplication } ;
 
 add_op         = "᛭" | "ᛧ" 
-				| "ꑭ᛭" | "ꑭᛧ" 
 				;
 
 multiplication = unary , { mul_op , unary } ;
 
 mul_op         = "᛫" | "ᛇ" 
-				| "ꑭ᛫" | "ꑭᛇ" 
 				;
 
 unary          = [ ( "ᛧ" | "ᛅ" ) ] , primary ;
 
 primary        = int_lit
 			 | bool_lit
+			 | string_lit
 			 | builtin_func_call
 			 | struct_literal
 			 | ident
@@ -97,8 +96,8 @@ struct_literal = type , "ᚮ" , [ struct_arg_list ] , "ᚭ" ;
 struct_arg_list = expr , { "ᛵ" , expr } ;
 
 (* Builtin I/O functions *
-	- ᚱ(expr) : read input, returns integer/bool depending on context
-	- ᚹ(expr) : print/println-like output of the expression value
+	- ᚱᚮᚭ : read input. The return type is inferred from assignment context (i32, i64, bool, or string).
+	- ᚹᚮexprᚭ : print/println-like output for i32/i64/bool/string expressions, always appending a newline.
 *)
 builtin_func_call = ( "ᚱ" | "ᚹ" ) , "ᚮ" , [ expr ] , "ᚭ" ;
 
@@ -112,6 +111,11 @@ int_suffix     = "ᛰ" | "ᛯ" ;
 dec_lit        = digit , { digit } ;
 
 bool_lit       = "ᛉ" | "ᛣ" ;
+
+string_lit     = "ᛌ" , { string_char } , "ᛌ" ;
+string_char    = escape | ( printable_char - "ᛌ" - "\\" - "\n" - "\r" ) ;
+escape         = "\\" , ( "n" | "t" | "r" | "\\" | "0" | "ᛌ" ) ;
+printable_char = ? any ASCII graphic or UTF-8 rune except line breaks ? ;
 
 (* Identifiers *)
 ident          = ident_start , { ident_part } ;

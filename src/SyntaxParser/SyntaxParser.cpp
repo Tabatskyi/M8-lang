@@ -240,7 +240,8 @@ std::unique_ptr<ReturnNode> SyntaxParser::parseReturn()
     {
         if (t->type == TokenType::Identifier || t->type == TokenType::Number ||
             t->type == TokenType::True || t->type == TokenType::False ||
-            t->type == TokenType::LParen || t->type == TokenType::Sub || t->type == TokenType::Not)
+            t->type == TokenType::LParen || t->type == TokenType::Sub || t->type == TokenType::Not ||
+            t->type == TokenType::StringLiteral)
         {
             std::unique_ptr<ExprNode> expr = parseExpr();
             if (!expr) return nullptr;
@@ -375,6 +376,7 @@ TypeDesc SyntaxParser::parseTypeDesc()
     case TokenType::I32: eat(); return TypeDesc::Builtin(ValueType::I32);
     case TokenType::I64: eat(); return TypeDesc::Builtin(ValueType::I64);
     case TokenType::Bool: eat(); return TypeDesc::Builtin(ValueType::Bool);
+    case TokenType::String: eat(); return TypeDesc::Builtin(ValueType::String);
     case TokenType::Identifier: 
     {
         std::string name = token->lexeme; eat();
@@ -738,6 +740,13 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
             return std::make_unique<BoolLiteralNode>(value);
         }
 
+        case TokenType::StringLiteral:
+        {
+            std::string value = token->lexeme;
+            eat();
+            return std::make_unique<StringLiteralNode>(std::move(value));
+        }
+
         case TokenType::LParen:
         {
             eat();
@@ -824,6 +833,7 @@ bool SyntaxParser::canStartType(const Token* token) const
     case TokenType::I32:
     case TokenType::I64:
     case TokenType::Bool:
+    case TokenType::String:
     case TokenType::Identifier:
         return true;
     default:
