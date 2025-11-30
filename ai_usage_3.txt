@@ -1,6 +1,6 @@
 Tabatskyi: add e2e tests for creation of structs and calling members/functions
 
-Created 3 todos
+GitHub Copilot: Created 3 todos
 
 Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/test/e2e/literal_output.out)
 
@@ -32,3 +32,76 @@ Completed: *Plan struct e2e scenarios* (1/3)
 2. Rerun `ctest -R struct_` (or full suite) to confirm the new programs pass once the backend pipeline is available.
 
 Made changes.
+
+Tabatskyi: write a real program that uses user input, with proper interface like prompts so it is clear what should be typed, and clear output of the program. Use functions, structures and templates to implement some logic and print the calculation results.
+
+GitHub Copilot: Here’s a complete M8 program that meets those requirements: it prompts for two 2D vectors, uses a struct to hold their coordinates, leverages functions for I/O and math, and relies on a small template to reuse “binary vector operation” logic. It prints intermediate info so it’s clear what’s happening.
+
+```m8
+ᛋVector2᛬x᛬ᛰᛵy᛬ᛰ
+ᛵ
+    ᛃlengthSquared᛬ᚮᚭ᛬ᛰ᛬
+        ᚷ_selfᚽx᛭_selfᚽx᛭_selfᚽy᛭_selfᚽy
+ᛵ
+
+ᛃtemplate᛬DotLike᛬ᛘOp᛬ᛒ᛬Vector2᛬Vector2ᚭ᛬ᛒ᛬ᛰ᛬
+    ᚷᛘOp᛬ᚮleft᛬Vector2ᚭᚮright᛬Vector2ᚭ᛬ᛰ᛬
+ᛵ
+
+ᛃdotProduct᛬ᚮleft᛬Vector2ᚭᚮright᛬Vector2ᚭ᛬ᛰ᛬
+    ᚷleftᚽx᛭rightᚽx᛭leftᚽy᛭rightᚽy
+ᛵ
+
+ᛃcrossZ᛬ᚮleft᛬Vector2ᚭᚮright᛬Vector2ᚭ᛬ᛰ᛬
+    ᚷleftᚽx᛭rightᚽy᛭leftᚽy᛭rightᚽx᛬ᚱ
+ᛵ
+
+ᛃpromptInt᛬ᚮlabel᛬ᛖᛋ᛭᛬ᛰ᛬
+    ᚹᚮlabelᚭ
+    ᚣ
+ᛵ
+
+ᛃreadVector᛬ᚮname᛬ᛖᛋ᛭᛬Vector2᛬
+    ᚹᚮname᛭ᛁᛜᛁᛜᛁᛜᛁ᛭ᚭ
+    ᚡvx᛬ᛰ᛬promptIntᚮname᛭ᛁᛜᛁᛜᛁᛜᛁ᛭᛬᛬ᚭ
+    ᚡvy᛬ᛰ᛬promptIntᚮname᛭ᛁᛜᛁᛜᛁᛜᛁ᛭᛬᛬ᚭ
+    ᚷVector2ᚮvxᛵvyᚭ
+ᛵ
+
+ᚡacc᛬DotLike᛬dotProductᚮVector2ᚭᚭ
+ᚡcross᛬DotLike᛬crossZᚮVector2ᚭᚭ
+
+ᛃprintResults᛬ᚮa᛬Vector2ᚭᚮb᛬Vector2ᚭ᛬ᛰ᛬
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+ᛵ
+
+ᚠmain᛬ᚮᚭ᛬ᛰ᛬
+    ᚡvecA᛬Vector2᛬readVectorᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚡvecB᛬Vector2᛬readVectorᚮᛖᛁ᛭᛬᛬ᚭ
+
+    ᚡdot᛬ᛰ᛬accᚮvecAᚭᚮvecBᚭ
+    ᚡcrossZVal᛬ᛰ᛬crossᚮvecAᚭᚮvecBᚭ
+    ᚡsumLen᛬ᛰ᛬vecAᚽlengthSquared᛭vecBᚽlengthSquared
+
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+    ᚹᚮᛖᛁ᛭᛬᛬ᚭ
+ᛵ
+```
+
+### How it behaves
+1. `readVector` prints a label like `Enter vector A x:` and `Enter vector A y:`, using `promptInt` to read each coordinate.
+2. `DotLike` template instantiates two functions: `acc` (dot product) and `cross` (2D cross product’s Z component).
+3. `main` reads two vectors, computes:
+   - dot product,
+   - cross product z-component,
+   - sum of squared lengths (via the struct’s `lengthSquared` method).
+4. `printResults` emits descriptive messages for each computed value.
+
+You can compile/run it with the existing toolchain; it uses only constructs already supported by the compiler (structs, member functions, templates, function calls, and IO).
