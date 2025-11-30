@@ -83,6 +83,7 @@ public:
     void visitID(const IDNode& node) override;
     void visitNumber(const NumberNode& node) override;
     void visitBoolLiteral(const BoolLiteralNode& node) override;
+    void visitStructLiteral(const StructLiteralNode& node) override;
 
 private:
     void generateFunction(const FunctionNode& func);

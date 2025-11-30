@@ -749,6 +749,58 @@ void CodeGenerator::visitBoolLiteral(const BoolLiteralNode& node)
 	pushValue({ node.value() ? "1" : "0", false, ValueType::Bool, "" });
 }
 
+void CodeGenerator::visitStructLiteral(const StructLiteralNode& node)
+{
+	if (node.structType().kind != TypeDesc::Kind::Struct)
+	{
+		pushValue({ "zeroinitializer", true, ValueType::Invalid, "" });
+		return;
+	}
+
+	auto infoIt = _structs.find(node.structType().structName);
+	if (infoIt == _structs.end())
+	{
+		pushValue({ "zeroinitializer", true, ValueType::Invalid, node.structType().structName });
+		return;
+	}
+
+	const StructInfo& info = infoIt->second;
+	std::string literalPtr = nextTemp();
+	emitInstruction(literalPtr + " = alloca %struct." + info.name);
+	emitInstruction("store %struct." + info.name + " zeroinitializer, %struct." + info.name + "* " + literalPtr);
+
+	size_t limit = std::min(node.args().size(), info.fields.size());
+	for (size_t i = 0; i < limit; ++i)
+	{
+		if (!node.args()[i])
+			continue;
+		node.args()[i]->accept(*this);
+		CodegenValue val = popValue();
+		const StructFieldInfo& field = info.fields[i];
+		std::string fieldPtr = nextTemp();
+		emitInstruction(fieldPtr + " = getelementptr %struct." + info.name + ", %struct." + info.name + "* " + literalPtr + ", i32 0, i32 " + std::to_string(i));
+		if (field.type.kind == TypeDesc::Kind::Builtin)
+		{
+			val = ensureType(std::move(val), field.type.builtin);
+			emitInstruction("store " + llvmType(field.type.builtin) + " " + val.operand + ", " + llvmType(field.type.builtin) + "* " + fieldPtr);
+		}
+		else
+		{
+			if (!val.isStruct || val.structName != field.type.structName)
+			{
+				std::string zeroTmp = nextTemp();
+				emitInstruction(zeroTmp + " = insertvalue %struct." + field.type.structName + " undef, i32 0, 0");
+				val = { zeroTmp, true, ValueType::Invalid, field.type.structName };
+			}
+			emitInstruction("store %struct." + field.type.structName + " " + val.operand + ", %struct." + field.type.structName + "* " + fieldPtr);
+		}
+	}
+
+	std::string loaded = nextTemp();
+	emitInstruction(loaded + " = load %struct." + info.name + ", %struct." + info.name + "* " + literalPtr);
+	pushValue({ loaded, true, ValueType::Invalid, info.name });
+}
+
 const FunctionInfo* CodeGenerator::findMemberFunction(const std::string& funcName, const std::string& structName) const
 {
 	auto it = _functions.find(funcName);

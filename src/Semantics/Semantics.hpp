@@ -4,6 +4,9 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
+#include <limits>
+#include <sstream>
 
 #include "../AST/ASTVisitor.hpp"
 #include "../AST/AssignFieldNode.hpp"

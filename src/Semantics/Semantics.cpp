@@ -167,17 +167,11 @@ void SemanticAnalyzer::visitDecl(const DeclNode& node)
             addError("Unknown struct type '" + resolvedType.structName + "'", node);
         if (initializer)
         {
-            const IDNode* id = dynamic_cast<const IDNode*>(initializer);
-            if (!id)
-                addError("Struct initializer must be an identifier", initializer);
-            else if (id->symbolId() == InvalidSymbolID)
-                addError("Use of undeclared variable in struct initializer", id);
-            else
-            {
-                const auto& src = _symbols.at(id->symbolId());
-                if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != resolvedType.structName)
-                    addError("Struct initializer type mismatch", initializer);
-            }
+            std::string initStruct;
+            if (!extractStructType(initializer, initStruct))
+                addError("Struct initializer must be a struct value", initializer);
+            else if (initStruct != resolvedType.structName)
+                addError("Struct initializer type mismatch", initializer);
         }
     }
     else if (initializer)
@@ -238,17 +232,11 @@ void SemanticAnalyzer::visitAssign(const AssignNode& node)
             }
             else
             {
-                const IDNode* id = dynamic_cast<const IDNode*>(value);
-                if (!id)
-                    addError("Struct assignment requires an identifier", value);
-                else if (id->symbolId() == InvalidSymbolID)
-                    addError("Use of undeclared variable in struct assignment", id);
-                else
-                {
-                    const auto& src = _symbols.at(id->symbolId());
-                    if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != targetVar->type.structName)
-                        addError("Struct assignment type mismatch", value);
-                }
+                std::string rhsStruct;
+                if (!extractStructType(value, rhsStruct))
+                    addError("Struct assignment requires a struct value", value);
+                else if (rhsStruct != targetVar->type.structName)
+                    addError("Struct assignment type mismatch", value);
             }
         }
         else if (memberField)
@@ -262,17 +250,11 @@ void SemanticAnalyzer::visitAssign(const AssignNode& node)
             }
             else
             {
-                const IDNode* id = dynamic_cast<const IDNode*>(value);
-                if (!id)
-                    addError("Struct field assignment requires an identifier", value);
-                else if (id->symbolId() == InvalidSymbolID)
-                    addError("Use of undeclared variable in struct assignment", id);
-                else
-                {
-                    const auto& src = _symbols.at(id->symbolId());
-                    if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != memberField->type.structName)
-                        addError("Struct assignment type mismatch", value);
-                }
+                std::string rhsStruct;
+                if (!extractStructType(value, rhsStruct))
+                    addError("Struct assignment requires a struct value", value);
+                else if (rhsStruct != memberField->type.structName)
+                    addError("Struct assignment type mismatch", value);
             }
         }
     }
@@ -306,17 +288,11 @@ void SemanticAnalyzer::visitAssignField(const AssignFieldNode& node)
         }
         else
         {
-            const IDNode* id = dynamic_cast<const IDNode*>(value);
-            if (!id)
-                addError("Struct field assignment requires an identifier", value);
-            else if (id->symbolId() == InvalidSymbolID)
-                addError("Use of undeclared variable in struct assignment", id);
-            else
-            {
-                const auto& src = _symbols.at(id->symbolId());
-                if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != fieldType.structName)
-                    addError("Struct field assignment type mismatch", value);
-            }
+            std::string rhsStruct;
+            if (!extractStructType(value, rhsStruct))
+                addError("Struct field assignment requires a struct value", value);
+            else if (rhsStruct != fieldType.structName)
+                addError("Struct field assignment type mismatch", value);
         }
     }
 }
@@ -342,7 +318,8 @@ void SemanticAnalyzer::visitReturn(const ReturnNode& node)
     _returnSeen = true;
     if (!node.expr())
     {
-        addError("Return statement requires an expression", node);
+        if (_inFunction)
+            addError("Return statement requires an expression", node);
         return;
     }
 
@@ -356,17 +333,11 @@ void SemanticAnalyzer::visitReturn(const ReturnNode& node)
         }
         else
         {
-            const IDNode* id = dynamic_cast<const IDNode*>(node.expr());
-            if (!id)
-                addError("Struct return value must be an identifier", node);
-            else if (id->symbolId() == InvalidSymbolID)
-                addError("Return references undeclared variable", id);
-            else
-            {
-                const auto& src = _symbols.at(id->symbolId());
-                if (src.type.kind != TypeDesc::Kind::Struct || src.type.structName != _currentFunctionReturn.structName)
-                    addError("Return struct type mismatch", node);
-            }
+            std::string retStruct;
+            if (!extractStructType(node.expr(), retStruct))
+                addError("Struct return value must be a struct", node);
+            else if (retStruct != _currentFunctionReturn.structName)
+                addError("Return struct type mismatch", node);
         }
     }
     else if (!canConvertToI32(node.expr()->type()))
@@ -491,6 +462,49 @@ void SemanticAnalyzer::visitNumber(const NumberNode& node)
 void SemanticAnalyzer::visitBoolLiteral(const BoolLiteralNode& node)
 {
     const_cast<BoolLiteralNode&>(node).setType(ValueType::Bool);
+}
+
+void SemanticAnalyzer::visitStructLiteral(const StructLiteralNode& node)
+{
+    if (node.structType().kind != TypeDesc::Kind::Struct)
+    {
+        addError("Struct literal must reference a struct type", node);
+        return;
+    }
+
+    auto structIt = _structs.find(node.structType().structName);
+    if (structIt == _structs.end())
+    {
+        addError("Unknown struct type '" + node.structType().structName + "'", node);
+        return;
+    }
+
+    const auto& fields = structIt->second.fields;
+    if (node.args().size() > fields.size())
+        addError("Struct literal provides too many arguments", node);
+
+    size_t limit = std::min(node.args().size(), fields.size());
+    for (size_t i = 0; i < limit; ++i)
+    {
+        const ExprNode* arg = node.args()[i].get();
+        if (!arg)
+            continue;
+        arg->accept(*this);
+        const auto& field = fields[i];
+        if (field.type.kind == TypeDesc::Kind::Builtin)
+        {
+            if (!isAssignable(field.type.builtin, arg->type()))
+                addError("Struct literal argument type mismatch for field '" + field.name + "'", arg);
+        }
+        else
+        {
+            std::string argStruct;
+            if (!extractStructType(arg, argStruct))
+                addError("Struct literal argument for field '" + field.name + "' must be a struct", arg);
+            else if (argStruct != field.type.structName)
+                addError("Struct literal argument type mismatch for field '" + field.name + "'", arg);
+        }
+    }
 }
 
 void SemanticAnalyzer::visitFieldAccess(const FieldAccessNode& node)
@@ -685,23 +699,50 @@ void SemanticAnalyzer::validateCallArguments(const std::vector<std::unique_ptr<E
         }
         else
         {
-            const IDNode* id = dynamic_cast<const IDNode*>(arg);
-            if (!id)
+            std::string argStruct;
+            if (!extractStructType(arg, argStruct))
             {
-                addError("Struct argument must be an identifier of type '" + param.type.structName + "'", arg);
+                addError("Struct argument must evaluate to type '" + param.type.structName + "'", arg);
             }
-            else if (id->symbolId() == InvalidSymbolID)
+            else if (argStruct != param.type.structName)
             {
-                addError(undeclaredVarMessage, id);
-            }
-            else
-            {
-                auto varIt = _symbols.find(id->symbolId());
-                if (varIt == _symbols.end() || varIt->second.type.kind != TypeDesc::Kind::Struct || varIt->second.type.structName != param.type.structName)
-                    addError("Struct argument type mismatch", id);
+                addError("Struct argument type mismatch", arg);
             }
         }
     }
+}
+
+bool SemanticAnalyzer::extractStructType(const ExprNode* expr, std::string& outStructName) const
+{
+    if (!expr)
+        return false;
+
+    if (const auto* id = dynamic_cast<const IDNode*>(expr))
+    {
+        if (id->symbolId() == InvalidSymbolID)
+            return false;
+        auto symIt = _symbols.find(id->symbolId());
+        if (symIt == _symbols.end())
+            return false;
+        if (symIt->second.type.kind == TypeDesc::Kind::Struct)
+        {
+            outStructName = symIt->second.type.structName;
+            return true;
+        }
+        return false;
+    }
+
+    if (const auto* literal = dynamic_cast<const StructLiteralNode*>(expr))
+    {
+        if (literal->structType().kind == TypeDesc::Kind::Struct)
+        {
+            outStructName = literal->structType().structName;
+            return true;
+        }
+        return false;
+    }
+
+    return false;
 }
 
 const FunctionInfo* SemanticAnalyzer::findMemberFunction(const std::string& funcName, const std::string& structName) const
