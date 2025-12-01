@@ -1,8 +1,5 @@
 #include "ASTCloner.hpp"
 
-#include <utility>
-#include <vector>
-
 ASTCloner::ASTCloner(TemplateSubstitution substitution, ScopeAllocator allocator)
     : _subst(std::move(substitution)), _scopeAllocator(std::move(allocator)) {}
 
@@ -18,7 +15,7 @@ std::unique_ptr<FunctionNode> ASTCloner::cloneFunction(const FunctionNode& origi
 
     std::unique_ptr<BlockNode> body;
     if (const BlockNode* originalBody = original.body())
-        body = cloneBlock(*originalBody);
+        body = clone<BlockNode>(*originalBody);
 
     size_t newScope = remapScope(original.scopeId());
     TypeDesc returnType = substitute(original.returnType());
@@ -48,41 +45,32 @@ size_t ASTCloner::remapScope(size_t originalId)
 
 std::unique_ptr<BlockNode> ASTCloner::cloneBlock(const BlockNode& block)
 {
-    BlockNode::StmtList statements;
-    statements.reserve(block.statements().size());
-    for (const auto& stmt : block.statements())
-    {
-        if (!stmt)
-            continue;
-        auto clone = cloneStmt(*stmt);
-        if (clone)
-            statements.push_back(std::move(clone));
-    }
+    auto statements = cloneList<StmtNode>(block.statements());
     size_t newScope = remapScope(block.scopeId());
-    auto clone = std::make_unique<BlockNode>(std::move(statements), newScope);
-    clone->setLine(block.line());
-    return clone;
+    auto cloned = std::make_unique<BlockNode>(std::move(statements), newScope);
+    cloned->setLine(block.line());
+    return cloned;
 }
 
 std::unique_ptr<StmtNode> ASTCloner::cloneStmt(const StmtNode& stmt)
 {
     if (auto* decl = dynamic_cast<const DeclNode*>(&stmt))
     {
-        auto inits = cloneExprList(decl->initializers());
-        auto clone = std::make_unique<DeclNode>(substitute(decl->declaredType()), decl->identifier(), decl->isMutable(), std::move(inits));
-        clone->setLine(stmt.line());
-        clone->setSymbolId(InvalidSymbolID);
-        return clone;
+        auto inits = cloneList<ExprNode>(decl->initializers());
+        auto cloned = std::make_unique<DeclNode>(substitute(decl->declaredType()), decl->identifier(), decl->isMutable(), std::move(inits));
+        cloned->setLine(stmt.line());
+        cloned->setSymbolId(InvalidSymbolID);
+        return cloned;
     }
     if (auto* assign = dynamic_cast<const AssignNode*>(&stmt))
     {
         std::unique_ptr<ExprNode> value;
         if (const ExprNode* expr = assign->value())
-            value = cloneExpr(*expr);
-        auto clone = std::make_unique<AssignNode>(assign->identifier(), std::move(value));
-        clone->setLine(stmt.line());
-        clone->setSymbolId(InvalidSymbolID);
-        return clone;
+            value = clone<ExprNode>(*expr);
+        auto cloned = std::make_unique<AssignNode>(assign->identifier(), std::move(value));
+        cloned->setLine(stmt.line());
+        cloned->setSymbolId(InvalidSymbolID);
+        return cloned;
     }
     if (auto* assignField = dynamic_cast<const AssignFieldNode*>(&stmt))
     {
@@ -95,43 +83,43 @@ std::unique_ptr<StmtNode> ASTCloner::cloneStmt(const StmtNode& stmt)
         }
         std::unique_ptr<ExprNode> value;
         if (const ExprNode* expr = assignField->value())
-            value = cloneExpr(*expr);
-        auto clone = std::make_unique<AssignFieldNode>(std::move(target), std::move(value));
-        clone->setLine(stmt.line());
-        return clone;
+            value = clone<ExprNode>(*expr);
+        auto cloned = std::make_unique<AssignFieldNode>(std::move(target), std::move(value));
+        cloned->setLine(stmt.line());
+        return cloned;
     }
     if (auto* ifNode = dynamic_cast<const IfNode*>(&stmt))
     {
         std::unique_ptr<ExprNode> condition;
         if (const ExprNode* cond = ifNode->condition())
-            condition = cloneExpr(*cond);
+            condition = clone<ExprNode>(*cond);
         std::unique_ptr<BlockNode> thenBlock;
         if (const BlockNode* tb = ifNode->thenBlock())
-            thenBlock = cloneBlock(*tb);
+            thenBlock = clone<BlockNode>(*tb);
         std::unique_ptr<BlockNode> elseBlock;
         if (const BlockNode* eb = ifNode->elseBlock())
-            elseBlock = cloneBlock(*eb);
-        auto clone = std::make_unique<IfNode>(std::move(condition), std::move(thenBlock), std::move(elseBlock));
-        clone->setLine(stmt.line());
-        return clone;
+            elseBlock = clone<BlockNode>(*eb);
+        auto cloned = std::make_unique<IfNode>(std::move(condition), std::move(thenBlock), std::move(elseBlock));
+        cloned->setLine(stmt.line());
+        return cloned;
     }
     if (auto* exprStmt = dynamic_cast<const ExprStmtNode*>(&stmt))
     {
         std::unique_ptr<ExprNode> expr;
         if (const ExprNode* inner = exprStmt->expr())
-            expr = cloneExpr(*inner);
-        auto clone = std::make_unique<ExprStmtNode>(std::move(expr));
-        clone->setLine(stmt.line());
-        return clone;
+            expr = clone<ExprNode>(*inner);
+        auto cloned = std::make_unique<ExprStmtNode>(std::move(expr));
+        cloned->setLine(stmt.line());
+        return cloned;
     }
     if (auto* ret = dynamic_cast<const ReturnNode*>(&stmt))
     {
         std::unique_ptr<ExprNode> value;
         if (const ExprNode* expr = ret->expr())
-            value = cloneExpr(*expr);
-        auto clone = std::make_unique<ReturnNode>(std::move(value));
-        clone->setLine(stmt.line());
-        return clone;
+            value = clone<ExprNode>(*expr);
+        auto cloned = std::make_unique<ReturnNode>(std::move(value));
+        cloned->setLine(stmt.line());
+        return cloned;
     }
     if (auto* structDecl = dynamic_cast<const StructDeclNode*>(&stmt))
     {
@@ -150,14 +138,14 @@ std::unique_ptr<StmtNode> ASTCloner::cloneStmt(const StmtNode& stmt)
                 methods.push_back(std::move(methodClone));
         }
 
-        auto clone = std::make_unique<StructDeclNode>(structDecl->name(), std::move(fields), std::move(methods));
-        clone->setLine(stmt.line());
-        return clone;
+        auto cloned = std::make_unique<StructDeclNode>(structDecl->name(), std::move(fields), std::move(methods));
+        cloned->setLine(stmt.line());
+        return cloned;
     }
     if (auto* function = dynamic_cast<const FunctionNode*>(&stmt))
     {
-        auto clone = cloneFunction(*function, function->name());
-        return clone;
+        auto cloned = cloneFunction(*function, function->name());
+        return cloned;
     }
     return nullptr;
 }
@@ -168,92 +156,82 @@ std::unique_ptr<ExprNode> ASTCloner::cloneExpr(const ExprNode& expr)
     {
         std::unique_ptr<ExprNode> left;
         if (const ExprNode* l = bin->left())
-            left = cloneExpr(*l);
+            left = clone<ExprNode>(*l);
         std::unique_ptr<ExprNode> right;
         if (const ExprNode* r = bin->right())
-            right = cloneExpr(*r);
-        auto clone = std::make_unique<BinaryOpNode>(bin->op(), std::move(left), std::move(right));
-        clone->setLine(expr.line());
-        return clone;
+            right = clone<ExprNode>(*r);
+        auto cloned = std::make_unique<BinaryOpNode>(bin->op(), std::move(left), std::move(right));
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* un = dynamic_cast<const UnaryOpNode*>(&expr))
     {
         std::unique_ptr<ExprNode> operand;
         if (const ExprNode* op = un->operand())
-            operand = cloneExpr(*op);
-        auto clone = std::make_unique<UnaryOpNode>(un->op(), std::move(operand));
-        clone->setLine(expr.line());
-        return clone;
+            operand = clone<ExprNode>(*op);
+        auto cloned = std::make_unique<UnaryOpNode>(un->op(), std::move(operand));
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* call = dynamic_cast<const FunctionCallNode*>(&expr))
     {
-        std::vector<std::unique_ptr<ExprNode>> args = cloneExprList(call->args());
-        auto clone = std::make_unique<FunctionCallNode>(call->name(), std::move(args));
-        clone->setSymbolId(InvalidSymbolID);
-        clone->setLine(expr.line());
-        return clone;
+        auto args = cloneList<ExprNode>(call->args());
+        auto cloned = std::make_unique<FunctionCallNode>(call->name(), std::move(args));
+        cloned->setSymbolId(InvalidSymbolID);
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* memberCall = dynamic_cast<const MemberFunctionCallNode*>(&expr))
     {
-        std::vector<std::unique_ptr<ExprNode>> args = cloneExprList(memberCall->args());
-        auto clone = std::make_unique<MemberFunctionCallNode>(memberCall->base(), memberCall->fieldChain(), memberCall->funcName(), std::move(args));
-        clone->setBaseSymbolId(InvalidSymbolID);
-        clone->setLine(expr.line());
-        return clone;
+        auto args = cloneList<ExprNode>(memberCall->args());
+        auto cloned = std::make_unique<MemberFunctionCallNode>(memberCall->base(), memberCall->fieldChain(), memberCall->funcName(), std::move(args));
+        cloned->setBaseSymbolId(InvalidSymbolID);
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* id = dynamic_cast<const IDNode*>(&expr))
     {
-        auto clone = std::make_unique<IDNode>(id->name());
-        clone->setSymbolId(InvalidSymbolID);
-        clone->setLine(expr.line());
-        return clone;
+        auto cloned = std::make_unique<IDNode>(id->name());
+        cloned->setSymbolId(InvalidSymbolID);
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* num = dynamic_cast<const NumberNode*>(&expr))
     {
-        auto clone = std::make_unique<NumberNode>(num->value());
-        clone->setLine(expr.line());
-        return clone;
+        auto cloned = std::make_unique<NumberNode>(num->value());
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* boolean = dynamic_cast<const BoolLiteralNode*>(&expr))
     {
-        auto clone = std::make_unique<BoolLiteralNode>(boolean->value());
-        clone->setLine(expr.line());
-        return clone;
+        auto cloned = std::make_unique<BoolLiteralNode>(boolean->value());
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* stringLit = dynamic_cast<const StringLiteralNode*>(&expr))
     {
-        auto clone = std::make_unique<StringLiteralNode>(stringLit->value());
-        clone->setLine(expr.line());
-        return clone;
+        auto cloned = std::make_unique<StringLiteralNode>(stringLit->value());
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* structLiteral = dynamic_cast<const StructLiteralNode*>(&expr))
     {
-        auto args = cloneExprList(structLiteral->args());
-        auto clone = std::make_unique<StructLiteralNode>(substitute(structLiteral->structType()), std::move(args));
-        clone->setLine(expr.line());
-        return clone;
+        auto args = cloneList<ExprNode>(structLiteral->args());
+        auto cloned = std::make_unique<StructLiteralNode>(substitute(structLiteral->structType()), std::move(args));
+        cloned->setLine(expr.line());
+        return cloned;
     }
     if (auto* field = dynamic_cast<const FieldAccessNode*>(&expr))
     {
-        auto clone = std::make_unique<FieldAccessNode>(field->base(), field->fieldChain());
-        clone->setBaseSymbolId(InvalidSymbolID);
-        clone->setLine(expr.line());
-        return clone;
+        auto cloned = std::make_unique<FieldAccessNode>(field->base(), field->fieldChain());
+        cloned->setBaseSymbolId(InvalidSymbolID);
+        cloned->setLine(expr.line());
+        return cloned;
     }
     return nullptr;
 }
 
 std::vector<std::unique_ptr<ExprNode>> ASTCloner::cloneExprList(const std::vector<std::unique_ptr<ExprNode>>& list)
 {
-    std::vector<std::unique_ptr<ExprNode>> result;
-    result.reserve(list.size());
-    for (const auto& expr : list)
-    {
-        if (!expr)
-            continue;
-        auto clone = cloneExpr(*expr);
-        if (clone)
-            result.push_back(std::move(clone));
-    }
-    return result;
+    return cloneList<ExprNode>(list);
 }
