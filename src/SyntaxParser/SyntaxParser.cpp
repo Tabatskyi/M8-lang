@@ -541,7 +541,64 @@ std::unique_ptr<StmtNode> SyntaxParser::parseExprStmt()
 
 std::unique_ptr<ExprNode> SyntaxParser::parseExpr()
 {
-    return parseEquality();
+    return parseLogicalOr();
+}
+
+std::unique_ptr<ExprNode> SyntaxParser::parseLogicalOr()
+{
+    std::unique_ptr<ExprNode> left = parseLogicalXor();
+    if (!left)
+        return nullptr;
+
+    while (match(TokenType::Or))
+    {
+        skipNewlines();
+        std::unique_ptr<ExprNode> right = parseLogicalXor();
+        if (!right)
+            return nullptr;
+        left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Or, std::move(left), std::move(right));
+        skipNewlines();
+    }
+
+    return left;
+}
+
+std::unique_ptr<ExprNode> SyntaxParser::parseLogicalXor()
+{
+    std::unique_ptr<ExprNode> left = parseLogicalAnd();
+    if (!left)
+        return nullptr;
+
+    while (match(TokenType::Xor))
+    {
+        skipNewlines();
+        std::unique_ptr<ExprNode> right = parseLogicalAnd();
+        if (!right)
+            return nullptr;
+        left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Xor, std::move(left), std::move(right));
+        skipNewlines();
+    }
+
+    return left;
+}
+
+std::unique_ptr<ExprNode> SyntaxParser::parseLogicalAnd()
+{
+    std::unique_ptr<ExprNode> left = parseEquality();
+    if (!left)
+        return nullptr;
+
+    while (match(TokenType::And))
+    {
+        skipNewlines();
+        std::unique_ptr<ExprNode> right = parseEquality();
+        if (!right)
+            return nullptr;
+        left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::And, std::move(left), std::move(right));
+        skipNewlines();
+    }
+
+    return left;
 }
 
 std::unique_ptr<ExprNode> SyntaxParser::parseEquality()

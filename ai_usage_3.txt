@@ -105,3 +105,62 @@ GitHub Copilot: Here’s a complete M8 program that meets those requirements: it
 4. `printResults` emits descriptive messages for each computed value.
 
 You can compile/run it with the existing toolchain; it uses only constructs already supported by the compiler (structs, member functions, templates, function calls, and IO).
+
+Tabatskyi: update readme with template description and any missing information
+
+GitHub Copilot: I'll read the README and the current state of the files to update it with information about the template implementation and any other missing details. 
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/README.md)
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/src/AST/ASTCloner.hpp)
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/src/AST/ASTCloner.cpp)
+
+Now let me check for any additional features or information in the project that might be missing from the README: 
+
+Searched for regex `template|Template|TEMPLATE` (`**/src/**/*.cpp`), 20 results
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi)
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/M8-lang.ebnf)
+
+Now let me update the README with comprehensive information including template support and AST cloning: 
+
+Perfect! Let me verify the updated README: 
+
+Read [](file:///mnt/c/Users/Vasenka88/source/repos/lcd-course-project-Tabatskyi/README.md)
+
+Excellent! I've successfully updated the README with comprehensive information including:
+
+## Updates Made:
+
+1. **Template Support**:
+   - Added template type `ᛸ` to the type system
+   - New section on Template Functions explaining how they work
+   - Example of generic identity function
+   - Explanation of automatic template instantiation
+
+2. **Enhanced Grammar Information**:
+   - Listed all assignment operators (`᛬`, `᛭᛬`, `ᛧ᛬`, `᛫᛬`, `ᛇ᛬`)
+   - Clarified if/else keywords (`ᛗ` for if, `ᛎ` for else)
+   - Added template type to the type list
+   - Enhanced struct information with struct literals and field access
+
+3. **New Compiler Architecture Section**:
+   - Overview of each compiler phase (Lexer, Parser, Semantic Analyzer, Code Generator)
+   - Detailed AST Cloner subsection explaining:
+     - Template-based generic cloning with C++ templates
+     - Type-safe compile-time dispatch using `if constexpr`
+     - Zero-overhead abstraction
+     - Type substitution for template instantiation
+     - Scope remapping
+     - Deep AST copying capabilities
+
+4. **Improved Build & Usage Instructions**:
+   - Modern CMake commands
+   - Clearer usage example with file paths
+   - Better testing instructions with multiple options
+
+The README now provides a complete picture of M8-lang's capabilities, including the sophisticated template system and the modern C++ template-based AST cloning implementation!
+
+Made changes.

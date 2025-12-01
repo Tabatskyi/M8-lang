@@ -53,6 +53,9 @@ public:
     std::unique_ptr<StmtNode> parseExprStmt();
 
     std::unique_ptr<ExprNode> parseExpr();
+    std::unique_ptr<ExprNode> parseLogicalOr();
+    std::unique_ptr<ExprNode> parseLogicalXor();
+    std::unique_ptr<ExprNode> parseLogicalAnd();
     std::unique_ptr<ExprNode> parseEquality();
     std::unique_ptr<ExprNode> parseAdditive();
     std::unique_ptr<ExprNode> parseMultiplicative();

@@ -31,6 +31,9 @@ static std::unordered_map<string, TokenType> singleOperatorMap =
     {"ᚮ", TokenType::LParen},
     {"ᚭ", TokenType::RParen},
     {"ᚽ", TokenType::Dot},
+    {"ᛤ", TokenType::And},
+    {"ᚢ", TokenType::Or},
+    {"ᛡ", TokenType::Xor},
 };
 
 static std::unordered_map<string, TokenType> keywordMap =

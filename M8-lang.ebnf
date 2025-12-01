@@ -65,7 +65,13 @@ assignment_op  = "᛬" | "᛭᛬" | "ᛧ᛬" | "᛫᛬" | "ᛇ᛬"
 assign_stmt    = ident , assignment_op , expr ;
 
 (* Expressions and precedence *)
-expr           = equality ;
+expr           = logical_or ;
+
+logical_or     = logical_xor , { "ᚢ" , logical_xor } ;
+
+logical_xor    = logical_and , { "ᛡ" , logical_and } ;
+
+logical_and    = equality , { "ᛤ" , equality } ;
 
 equality       = relation , { ( "᛬᛬" | "ᛅ᛬" ) , relation } ;
 

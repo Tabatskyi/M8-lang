@@ -564,6 +564,22 @@ void SemanticAnalyzer::visitBinaryOp(const BinaryOpNode& node)
         node.setType(ValueType::Bool);
         return;
     }
+    case BinaryOpNode::Operator::And:
+    case BinaryOpNode::Operator::Or:
+    case BinaryOpNode::Operator::Xor:
+        if (leftType == ValueType::Bool && rightType == ValueType::Bool)
+        {
+            node.setType(ValueType::Bool);
+            return;
+        }
+        if (isNumeric(leftType) && isNumeric(rightType))
+        {
+            node.setType(widerType(leftType, rightType));
+            return;
+        }
+        addError("Logical/bitwise operators require boolean or numeric operands of compatible types", node);
+        node.setType(ValueType::Invalid);
+        return;
     }
 
     node.setType(ValueType::Invalid);

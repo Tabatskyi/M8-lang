@@ -803,6 +803,28 @@ void CodeGenerator::visitBinaryOp(const BinaryOpNode& node)
 		pushValue({ tmp, false, ValueType::Bool, "" });
 		return;
 	}
+	case BinaryOpNode::Operator::And:
+	case BinaryOpNode::Operator::Or:
+	case BinaryOpNode::Operator::Xor:
+	{
+		ValueType targetType = node.type();
+		leftVal = ensureType(std::move(leftVal), targetType);
+		rightVal = ensureType(std::move(rightVal), targetType);
+		
+		std::string opInstr;
+		switch (node.op())
+		{
+		case BinaryOpNode::Operator::And: opInstr = "and"; break;
+		case BinaryOpNode::Operator::Or: opInstr = "or"; break;
+		case BinaryOpNode::Operator::Xor: opInstr = "xor"; break;
+		default: opInstr = "and"; break;
+		}
+		
+		std::string tmp = nextTemp();
+		emitInstruction(tmp + " = " + opInstr + " " + llvmType(targetType) + " " + leftVal.operand + ", " + rightVal.operand);
+		pushValue({ tmp, false, targetType, "" });
+		return;
+	}
 	}
 
 	pushValue({ "0", false, ValueType::Invalid, "" });
