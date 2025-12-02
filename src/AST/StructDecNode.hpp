@@ -1,9 +1,6 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <vector>
-
+#include "ASTVisitor.hpp"
 #include "FunctionNode.hpp"
 #include "StmtNode.hpp"
 #include "TypeDesc.hpp"
@@ -25,6 +22,7 @@ public:
 	const std::string& name() const;
 	const std::vector<Field>& fields() const;
 	const std::vector<std::unique_ptr<class FunctionNode>>& functions() const;
+	std::vector<std::unique_ptr<class FunctionNode>>& functions();
 
 	void accept(ASTVisitor& visitor) const override;
 

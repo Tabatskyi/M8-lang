@@ -19,15 +19,19 @@ stmt           = var_decl
 
 expr_stmt      = expr ;
 
-(* Declarations: ᚡname᛬expr and ᛍname᛬expr  *)
-var_decl       = ( "ᚡ" )  , ident , "᛬" , expr ;
-const_decl     = ( "ᛍ" ) , ident , "᛬" , expr ;
+(* Declarations now allow optional type annotations and struct literals. *)
+var_decl       = "ᚡ" , ident , "᛬" , decl_initializer ;
+const_decl     = "ᛍ" , ident , "᛬" , decl_initializer ;
+
+decl_initializer = struct_literal
+			 | [ type , "᛬" ] , expr
+			 ;
 
 (* Return statement: optionally carries a value *)
 return_stmt    = ( "ᚷ" ) , [ expr ] ;
 
 (* Types: primitive and user-defined struct types *)
-type           = "ᛰ" | "ᛯ" | "ᛨ" | ident ;
+type           = "ᛰ" | "ᛯ" | "ᛨ" | "ꑭ" | ident ;
 
 (* Function declarations *
 	- Global function:       ᚠname᛬( args )᛬retType᛬body
@@ -61,7 +65,13 @@ assignment_op  = "᛬" | "᛭᛬" | "ᛧ᛬" | "᛫᛬" | "ᛇ᛬"
 assign_stmt    = ident , assignment_op , expr ;
 
 (* Expressions and precedence *)
-expr           = equality ;
+expr           = logical_or ;
+
+logical_or     = logical_xor , { "ᚢ" , logical_xor } ;
+
+logical_xor    = logical_and , { "ᛡ" , logical_and } ;
+
+logical_and    = equality , { "ᛤ" , equality } ;
 
 equality       = relation , { ( "᛬᛬" | "ᛅ᛬" ) , relation } ;
 
@@ -70,22 +80,30 @@ relation       = addition , { ( "ᚲ" | "ᚲ᛬" ) , addition } ;
 addition       = multiplication , { add_op , multiplication } ;
 
 add_op         = "᛭" | "ᛧ" 
-				| "ꑭ᛭" | "ꑭᛧ" 
 				;
 
 multiplication = unary , { mul_op , unary } ;
 
 mul_op         = "᛫" | "ᛇ" 
-				| "ꑭ᛫" | "ꑭᛇ" 
 				;
 
 unary          = [ ( "ᛧ" | "ᛅ" ) ] , primary ;
 
-primary        = int_lit | bool_lit | builtin_func_call | ident | "ᚮ" , expr , "ᚭ" ;
+primary        = int_lit
+			 | bool_lit
+			 | string_lit
+			 | builtin_func_call
+			 | struct_literal
+			 | ident
+			 | "ᚮ" , expr , "ᚭ"
+			 ;
+
+struct_literal = type , "ᚮ" , [ struct_arg_list ] , "ᚭ" ;
+struct_arg_list = expr , { "ᛵ" , expr } ;
 
 (* Builtin I/O functions *
-	- ᚱ(expr) : read input, returns integer/bool depending on context
-	- ᚹ(expr) : print/println-like output of the expression value
+	- ᚱᚮᚭ : read input. The return type is inferred from assignment context (i32, i64, bool, or string).
+	- ᚹᚮexprᚭ : print/println-like output for i32/i64/bool/string expressions, always appending a newline.
 *)
 builtin_func_call = ( "ᚱ" | "ᚹ" ) , "ᚮ" , [ expr ] , "ᚭ" ;
 
@@ -100,6 +118,11 @@ dec_lit        = digit , { digit } ;
 
 bool_lit       = "ᛉ" | "ᛣ" ;
 
+string_lit     = "ᛌ" , { string_char } , "ᛌ" ;
+string_char    = escape | ( printable_char - "ᛌ" - "\\" - "\n" - "\r" ) ;
+escape         = "\\" , ( "n" | "t" | "r" | "\\" | "0" | "ᛌ" ) ;
+printable_char = ? any ASCII graphic or UTF-8 rune except line breaks ? ;
+
 (* Identifiers *)
 ident          = ident_start , { ident_part } ;
 ident_start    = letter ;
@@ -113,6 +136,9 @@ letter         = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K"
 				;
 
 digit          = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+lbrace         = "ᚮ" ;
+rbrace         = "ᚭ" ;
 
 (*
 	Notes:

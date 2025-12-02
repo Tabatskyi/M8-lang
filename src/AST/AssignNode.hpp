@@ -1,8 +1,6 @@
 #pragma once
 
-#include <memory>
-#include <string>
-
+#include "ASTVisitor.hpp"
 #include "ExprNode.hpp"
 #include "StmtNode.hpp"
 #include "TypeDesc.hpp"
@@ -14,6 +12,8 @@ public:
 
 	const std::string& identifier() const;
 	const ExprNode* value() const;
+	ExprNode* value();
+	void setValue(std::unique_ptr<ExprNode> value);
 	SymbolID symbolId() const;
 	void setSymbolId(SymbolID id) const;
 

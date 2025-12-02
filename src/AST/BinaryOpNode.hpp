@@ -1,8 +1,7 @@
 #pragma once
 
-#include <memory>
-
 #include "ExprNode.hpp"
+#include "ASTVisitor.hpp"
 
 class BinaryOpNode : public ExprNode
 {
@@ -14,7 +13,10 @@ public:
 		Mul,
 		Div,
 		Equal,
-		NotEqual
+		NotEqual,
+		And,
+		Or,
+		Xor
 	};
 
 	BinaryOpNode(Operator op, std::unique_ptr<ExprNode> left, std::unique_ptr<ExprNode> right);

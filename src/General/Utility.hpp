@@ -8,39 +8,34 @@ enum class ValueType
     Invalid,
     I32,
     I64,
-    Bool
+    Bool,
+    String
 };
 
 using SymbolID = size_t;
 constexpr SymbolID InvalidSymbolID = static_cast<SymbolID>(-1);
-
-struct VariableInfo
-{
-    ValueType type = ValueType::Invalid;
-    bool isMutable = false;
-    std::string name;
-    size_t scopeId = 0;
-};
 
 inline bool isNumeric(ValueType type)
 {
     return type == ValueType::I32 || type == ValueType::I64;
 }
 
-inline ValueType widerType(ValueType lhs, ValueType rhs)
+inline ValueType widerType(ValueType leftHandSide, ValueType rightHandSide)
 {
-    if (!isNumeric(lhs) || !isNumeric(rhs))
+    if (!isNumeric(leftHandSide) || !isNumeric(rightHandSide))
         return ValueType::Invalid;
-    if (lhs == ValueType::I64 || rhs == ValueType::I64)
+    if (leftHandSide == ValueType::I64 || rightHandSide == ValueType::I64)
         return ValueType::I64;
     return ValueType::I32;
 }
 
-inline ValueType comparisonOperandType(ValueType lhs, ValueType rhs)
+inline ValueType comparisonOperandType(ValueType leftHandSide, ValueType rightHandSide)
 {
-    if (lhs == ValueType::Bool && rhs == ValueType::Bool)
+    if (leftHandSide == ValueType::Bool && rightHandSide == ValueType::Bool)
         return ValueType::Bool;
-    return widerType(lhs, rhs);
+    if (leftHandSide == ValueType::String && rightHandSide == ValueType::String)
+        return ValueType::String;
+    return widerType(leftHandSide, rightHandSide);
 }
 
 inline bool isAssignable(ValueType target, ValueType source)
@@ -66,6 +61,7 @@ inline std::string typeToString(ValueType type)
     case ValueType::I32: return "i32";
     case ValueType::I64: return "i64";
     case ValueType::Bool: return "bool";
+    case ValueType::String: return "string";
     default: return "<invalid>";
     }
 }

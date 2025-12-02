@@ -1,23 +1,13 @@
 #include "SyntaxParser.hpp"
 
-#include "../AST/ProgramNode.hpp"
-#include "../AST/StmtNode.hpp"
-#include "../AST/BlockNode.hpp"
-#include "../AST/ReturnNode.hpp"
-#include "../AST/DeclNode.hpp"
-#include "../AST/AssignNode.hpp"
-#include "../AST/IfNode.hpp"
-#include "../AST/BinaryOpNode.hpp"
-#include "../AST/UnaryOpNode.hpp"
-#include "../AST/IDNode.hpp"
-#include "../AST/NumberNode.hpp"
-#include "../AST/BoolLiteralNode.hpp"
-#include "../AST/FunctionNode.hpp"
-#include "../AST/StructDecNode.hpp"
-#include "../AST/FunctionCallNode.hpp"
-#include "../AST/MemberFunctionCallNode.hpp"
-
-SyntaxParser::SyntaxParser(std::vector<Token> tokens): _tokens(std::move(tokens)) {}
+SyntaxParser::SyntaxParser(std::vector<Token> tokens): _tokens(std::move(tokens))
+{
+    for (size_t i = 0; i + 1 < _tokens.size(); ++i)
+    {
+        if (_tokens[i].type == TokenType::Struct && _tokens[i + 1].type == TokenType::Identifier)
+            _knownStructs.insert(_tokens[i + 1].lexeme);
+    }
+}
 
 const Token* SyntaxParser::peek(size_t offset) const
 {
@@ -41,18 +31,33 @@ std::unique_ptr<ProgramNode> SyntaxParser::parseProgram()
     if (atEnd())
         return std::make_unique<ProgramNode>(std::move(statements), 0);
 
+    skipNewlines();
+    while (match(TokenType::StmtSep))
+        skipNewlines();
+
     while (!atEnd())
     {
         std::unique_ptr<StmtNode> currentStmt = parseStmt();
         if (!currentStmt) 
             return nullptr;
         statements.push_back(std::move(currentStmt));
+        skipNewlines();
         if (!match(TokenType::StmtSep))
             break;
+        skipNewlines();
+        if (const Token* next = peek())
+        {
+            if (next->type == TokenType::StmtSep)
+            {
+                addError("Unexpected empty statement between separators");
+                return nullptr;
+            }
+        }
     }
 
-    if (!atEnd() && peek()->type == TokenType::StmtSep)
-        eat();
+    skipNewlines();
+    while (match(TokenType::StmtSep))
+        skipNewlines();
 
     if (!atEnd())
         addError("Unexpected tokens after program body");
@@ -78,7 +83,9 @@ std::unique_ptr<StmtNode> SyntaxParser::parseStmt()
             return parseDecl();
 
         case TokenType::Identifier:
-            return parseAssign();
+            if (identifierStartsAssignment())
+                return parseAssign();
+            return parseExprStmt();
 
         case TokenType::Return:
             return parseReturn();
@@ -93,6 +100,8 @@ std::unique_ptr<StmtNode> SyntaxParser::parseStmt()
             return parseStruct();
 
         default:
+            if (canStartExprStatement(token))
+                return parseExprStmt();
             addError("Unexpected token '" + token->lexeme + "' at start of statement");
             return nullptr;
     }
@@ -100,12 +109,26 @@ std::unique_ptr<StmtNode> SyntaxParser::parseStmt()
 
 std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& masterStruct)
 {
-    bool isMethod = match(TokenType::Method);
-    if (!isMethod && !match(TokenType::Function))
+    bool isMethodKeyword = match(TokenType::Method);
+    bool isFunctionKeyword = false;
+    if (!isMethodKeyword)
+        isFunctionKeyword = match(TokenType::Function);
+    else
+        isFunctionKeyword = true;
+
+    if (!isMethodKeyword && !isFunctionKeyword)
     {
         addError("Expected function (ᚠ) or method (ᛃ) declaration keyword");
         return nullptr;
     }
+
+    if (isMethodKeyword && masterStruct.empty())
+    {
+        addError("Method declaration is only allowed inside a struct body");
+        return nullptr;
+    }
+
+    bool isMember = isMethodKeyword || !masterStruct.empty();
 
     const Token* identTok = peek();
     if (!identTok || identTok->type != TokenType::Identifier)
@@ -121,6 +144,10 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
         return nullptr;
 
     std::vector<FunctionNode::Param> params;
+    bool isTemplate = false;
+    if (isMember)
+        params.push_back(FunctionNode::Param{ TypeDesc::Struct(masterStruct), std::string("_self") });
+
     if (peek() && peek()->type == TokenType::Identifier)
     {
         while (true)
@@ -134,6 +161,8 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
             std::string pName = pTok->lexeme; eat();
             if (!expect(TokenType::Assign, "Expected '᛬' after parameter name")) return nullptr;
             TypeDesc pType = parseTypeDesc();
+            if (pType.kind == TypeDesc::Kind::TemplateParam)
+                isTemplate = true;
             params.push_back(FunctionNode::Param{ pType, pName });
             if (!match(TokenType::StmtSep)) break;
         }
@@ -144,18 +173,34 @@ std::unique_ptr<FunctionNode> SyntaxParser::parseFunction(const std::string& mas
     if (!expect(TokenType::Assign, "Expected '᛬' after ')' for return type")) 
         return nullptr;
     TypeDesc returnType = parseTypeDesc();
+    if (returnType.kind == TypeDesc::Kind::TemplateParam)
+        isTemplate = true;
     if (!expect(TokenType::Assign, "Expected '᛬' before function body")) 
         return nullptr;
 
     std::vector<std::unique_ptr<StmtNode>> bodyStatements;
-    std::unique_ptr<StmtNode> bodyStmt = parseStmt();
-    if (!bodyStmt) 
+    while (!atEnd())
+    {
+        skipNewlines();
+        const Token* nextToken = peek();
+        if (!nextToken || nextToken->type == TokenType::StmtSep || nextToken->type == TokenType::Function || nextToken->type == TokenType::Struct)
+            break;
+        std::unique_ptr<StmtNode> stmt = parseStmt();
+        if (!stmt)
+            return nullptr;
+        bodyStatements.push_back(std::move(stmt));
+        skipNewlines();
+    }
+
+    if (bodyStatements.empty())
+    {
+        addError("Function body must contain at least one statement");
         return nullptr;
-    bodyStatements.push_back(std::move(bodyStmt));
-    
+    }
+
     auto body = parseBlock(std::move(bodyStatements), allocateScopeId());
 
-    return std::make_unique<FunctionNode>(std::move(name), std::move(params), returnType, std::move(body), body->scopeId(), isMethod ? masterStruct : std::string{});
+    return std::make_unique<FunctionNode>(std::move(name), std::move(params), returnType, std::move(body), body->scopeId(), isMember ? masterStruct : std::string{}, isTemplate);
 }
 
 std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
@@ -192,11 +237,22 @@ std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
             TypeDesc fieldType = parseTypeDesc();
             fields.push_back(StructDeclNode::Field{ fieldType, fieldName, true });
             
-            if (match(TokenType::StmtSep))
+            const Token* sepToken = peek();
+            if (sepToken && sepToken->type == TokenType::StmtSep)
             {
-                if (peek() && (peek()->type == TokenType::Function || peek()->type == TokenType::Method))
+                const Token* afterSep = peek(1);
+                if (afterSep && (afterSep->type == TokenType::Function || afterSep->type == TokenType::Method))
                 {
+                    eat();
                     methodsPending = true;
+                    break;
+                }
+                else if (afterSep && afterSep->type == TokenType::Identifier)
+                {
+                    eat(); 
+                }
+                else
+                {
                     break;
                 }
             }
@@ -207,7 +263,18 @@ std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
         }
     }
 
-    if (methodsPending || match(TokenType::StmtSep))
+    bool hasSepBeforeMethods = methodsPending;
+    if (!hasSepBeforeMethods && peek() && peek()->type == TokenType::StmtSep)
+    {
+        const Token* afterSep = peek(1);
+        if (afterSep && (afterSep->type == TokenType::Function || afterSep->type == TokenType::Method))
+        {
+            eat(); 
+            hasSepBeforeMethods = true;
+        }
+    }
+    
+    if (hasSepBeforeMethods)
     {
         while (peek() && (peek()->type == TokenType::Function || peek()->type == TokenType::Method))
         {
@@ -215,8 +282,24 @@ std::unique_ptr<StructDeclNode> SyntaxParser::parseStruct()
             if (!method)
                 return nullptr;
             methods.push_back(std::move(method));
-            if (!match(TokenType::StmtSep))
+            
+            const Token* sepToken = peek();
+            if (sepToken && sepToken->type == TokenType::StmtSep)
+            {
+                const Token* afterSep = peek(1);
+                if (afterSep && (afterSep->type == TokenType::Function || afterSep->type == TokenType::Method))
+                {
+                    eat();
+                }
+                else
+                {
+                    break;
+                }
+            }
+            else
+            {
                 break;
+            }
         }
     }
 
@@ -229,16 +312,13 @@ std::unique_ptr<ReturnNode> SyntaxParser::parseReturn()
         return nullptr;
 
     skipNewlines();
-    if (const Token* t = peek())
+    const Token* next = peek();
+    if (canStartExprStatement(next))
     {
-        if (t->type == TokenType::Identifier || t->type == TokenType::Number ||
-            t->type == TokenType::True || t->type == TokenType::False ||
-            t->type == TokenType::LParen || t->type == TokenType::Sub || t->type == TokenType::Not)
-        {
-            std::unique_ptr<ExprNode> expr = parseExpr();
-            if (!expr) return nullptr;
-            return std::make_unique<ReturnNode>(std::move(expr));
-        }
+        std::unique_ptr<ExprNode> expr = parseExpr();
+        if (!expr)
+            return nullptr;
+        return std::make_unique<ReturnNode>(std::move(expr));
     }
     return std::make_unique<ReturnNode>(nullptr);
 }
@@ -312,12 +392,46 @@ std::unique_ptr<DeclNode> SyntaxParser::parseDecl()
     if (!expect(TokenType::Assign, "Expected assignment colon (᛬) in declaration"))
         return nullptr;
 
-    std::unique_ptr<ExprNode> initializer = parseExpr();
-    if (!initializer) return nullptr;
+    std::unique_ptr<ExprNode> initializer;
+    TypeDesc declaredType = TypeDesc::Builtin(ValueType::Invalid);
+
+    if (isStructLiteralAhead())
+    {
+        initializer = parseStructLiteral();
+    }
+    else
+    {
+        size_t savedIndex = _index;
+        if (canStartType(peek()))
+        {
+            TypeDesc potentialType = parseTypeDesc();
+            if (match(TokenType::Assign))
+            {
+                declaredType = potentialType;
+                initializer = parseExpr();
+            }
+            else
+            {
+                _index = savedIndex;
+            }
+        }
+
+        if (!initializer)
+            initializer = parseExpr();
+    }
+
+    if (!initializer)
+        return nullptr;
+
+    if (declaredType.kind == TypeDesc::Kind::Builtin && declaredType.builtin == ValueType::Invalid)
+    {
+        if (auto* literal = dynamic_cast<StructLiteralNode*>(initializer.get()))
+            declaredType = literal->structType();
+    }
 
     std::vector<std::unique_ptr<ExprNode>> inits;
     inits.push_back(std::move(initializer));
-    return std::make_unique<DeclNode>(TypeDesc::Builtin(ValueType::Invalid), std::move(identifier), isMutable, std::move(inits));
+    return std::make_unique<DeclNode>(declaredType, std::move(identifier), isMutable, std::move(inits));
 }
 
 TypeDesc SyntaxParser::parseTypeDesc()
@@ -334,6 +448,8 @@ TypeDesc SyntaxParser::parseTypeDesc()
     case TokenType::I32: eat(); return TypeDesc::Builtin(ValueType::I32);
     case TokenType::I64: eat(); return TypeDesc::Builtin(ValueType::I64);
     case TokenType::Bool: eat(); return TypeDesc::Builtin(ValueType::Bool);
+    case TokenType::String: eat(); return TypeDesc::Builtin(ValueType::String);
+    case TokenType::TemplateType: eat(); return TypeDesc::TemplateParam("ᛸ");
     case TokenType::Identifier: 
     {
         std::string name = token->lexeme; eat();
@@ -345,7 +461,7 @@ TypeDesc SyntaxParser::parseTypeDesc()
     }
 }
 
-std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
+std::unique_ptr<StmtNode> SyntaxParser::parseAssign()
 {
     const Token* identTok = peek();
     if (!identTok || identTok->type != TokenType::Identifier)
@@ -356,6 +472,33 @@ std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
 
     std::string identifier = identTok->lexeme;
     eat();
+
+    std::vector<std::string> chain;
+    skipNewlines();
+    while (match(TokenType::Dot))
+    {
+        const Token* fieldTok = peek();
+        if (!fieldTok || fieldTok->type != TokenType::Identifier)
+        {
+            addError("Expected field name after '.' in assignment");
+            return nullptr;
+        }
+        chain.push_back(fieldTok->lexeme);
+        eat();
+        skipNewlines();
+    }
+
+    if (!chain.empty())
+    {
+        if (!expect(TokenType::Assign, "Expected '᛬' in field assignment"))
+            return nullptr;
+        skipNewlines();
+        std::unique_ptr<ExprNode> value = parseExpr();
+        if (!value)
+            return nullptr;
+        auto target = std::make_unique<FieldAccessNode>(std::move(identifier), std::move(chain));
+        return std::make_unique<AssignFieldNode>(std::move(target), std::move(value));
+    }
 
     if (match(TokenType::Assign))
     {
@@ -388,9 +531,74 @@ std::unique_ptr<AssignNode> SyntaxParser::parseAssign()
     return nullptr;
 }
 
+std::unique_ptr<StmtNode> SyntaxParser::parseExprStmt()
+{
+    std::unique_ptr<ExprNode> expr = parseExpr();
+    if (!expr)
+        return nullptr;
+    return std::make_unique<ExprStmtNode>(std::move(expr));
+}
+
 std::unique_ptr<ExprNode> SyntaxParser::parseExpr()
 {
-    return parseEquality();
+    return parseLogicalOr();
+}
+
+std::unique_ptr<ExprNode> SyntaxParser::parseLogicalOr()
+{
+    std::unique_ptr<ExprNode> left = parseLogicalXor();
+    if (!left)
+        return nullptr;
+
+    while (match(TokenType::Or))
+    {
+        skipNewlines();
+        std::unique_ptr<ExprNode> right = parseLogicalXor();
+        if (!right)
+            return nullptr;
+        left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Or, std::move(left), std::move(right));
+        skipNewlines();
+    }
+
+    return left;
+}
+
+std::unique_ptr<ExprNode> SyntaxParser::parseLogicalXor()
+{
+    std::unique_ptr<ExprNode> left = parseLogicalAnd();
+    if (!left)
+        return nullptr;
+
+    while (match(TokenType::Xor))
+    {
+        skipNewlines();
+        std::unique_ptr<ExprNode> right = parseLogicalAnd();
+        if (!right)
+            return nullptr;
+        left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::Xor, std::move(left), std::move(right));
+        skipNewlines();
+    }
+
+    return left;
+}
+
+std::unique_ptr<ExprNode> SyntaxParser::parseLogicalAnd()
+{
+    std::unique_ptr<ExprNode> left = parseEquality();
+    if (!left)
+        return nullptr;
+
+    while (match(TokenType::And))
+    {
+        skipNewlines();
+        std::unique_ptr<ExprNode> right = parseEquality();
+        if (!right)
+            return nullptr;
+        left = std::make_unique<BinaryOpNode>(BinaryOpNode::Operator::And, std::move(left), std::move(right));
+        skipNewlines();
+    }
+
+    return left;
 }
 
 std::unique_ptr<ExprNode> SyntaxParser::parseEquality()
@@ -528,6 +736,9 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
     {
         case TokenType::Identifier:
         {
+            if (isStructLiteralAhead())
+                return parseStructLiteral();
+
             std::string name = token->lexeme;
             eat();
 
@@ -550,6 +761,81 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
                     }
                 }
                 return std::make_unique<FunctionCallNode>(std::move(name), std::move(args));
+            }
+
+            skipNewlines();
+            if (peek() && peek()->type == TokenType::Dot)
+            {
+                std::vector<std::string> chain;
+                while (match(TokenType::Dot))
+                {
+                    const Token* fieldTok = peek();
+                    if (!fieldTok || fieldTok->type != TokenType::Identifier)
+                    {
+                        addError("Expected field name after '.' in expression");
+                        return nullptr;
+                    }
+                    chain.push_back(fieldTok->lexeme);
+                    eat();
+                    skipNewlines();
+                }
+
+                if (!chain.empty() && peek() && peek()->type == TokenType::LParen)
+                {
+                    std::string fnName = chain.back();
+                    chain.pop_back();
+                    if (!expect(TokenType::LParen, "Expected '(' after member function name"))
+                        return nullptr;
+                    std::vector<std::unique_ptr<ExprNode>> args;
+                    if (!match(TokenType::RParen))
+                    {
+                        while (true)
+                        {
+                            std::unique_ptr<ExprNode> arg = parseExpr();
+                            if (!arg) return nullptr;
+                            args.push_back(std::move(arg));
+                            if (match(TokenType::RParen))
+                                break;
+                            if (!expect(TokenType::StmtSep, "Expected 'ᛵ' between member function arguments"))
+                                return nullptr;
+                        }
+                    }
+                    return std::make_unique<MemberFunctionCallNode>(std::move(name), std::move(chain), std::move(fnName), std::move(args));
+                }
+
+                if (peek() && peek()->type == TokenType::LParen)
+                {
+                    if (!chain.empty())
+                    {
+                        addError("Callable object syntax is only supported on variables, not nested fields");
+                        return nullptr;
+                    }
+                    if (!expect(TokenType::LParen, "Expected '(' after callable object"))
+                        return nullptr;
+                    std::vector<std::unique_ptr<ExprNode>> args;
+                    if (!match(TokenType::RParen))
+                    {
+                        while (true)
+                        {
+                            std::unique_ptr<ExprNode> arg = parseExpr();
+                            if (!arg) return nullptr;
+                            args.push_back(std::move(arg));
+                            if (match(TokenType::RParen))
+                                break;
+                            if (!expect(TokenType::StmtSep, "Expected 'ᛵ' between callable arguments"))
+                                return nullptr;
+                        }
+                    }
+                    return std::make_unique<MemberFunctionCallNode>(std::move(name), std::vector<std::string>{}, std::string("call"), std::move(args));
+                }
+
+                if (chain.empty())
+                {
+                    addError("Expected member function call or field name after '.'");
+                    return nullptr;
+                }
+
+                return std::make_unique<FieldAccessNode>(std::move(name), std::move(chain));
             }
 
             return std::make_unique<IDNode>(std::move(name));
@@ -592,6 +878,13 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
             return std::make_unique<BoolLiteralNode>(value);
         }
 
+        case TokenType::StringLiteral:
+        {
+            std::string value = token->lexeme;
+            eat();
+            return std::make_unique<StringLiteralNode>(std::move(value));
+        }
+
         case TokenType::LParen:
         {
             eat();
@@ -607,6 +900,41 @@ std::unique_ptr<ExprNode> SyntaxParser::parsePrimary()
             addError("Unexpected token '" + token->lexeme + "' in expression");
             return nullptr;
     }
+}
+
+std::unique_ptr<ExprNode> SyntaxParser::parseStructLiteral()
+{
+    const Token* typeTok = peek();
+    if (!typeTok || typeTok->type != TokenType::Identifier)
+    {
+        addError("Struct literal requires a struct type name");
+        return nullptr;
+    }
+
+    std::string structName = typeTok->lexeme;
+    eat();
+    TypeDesc literalType = TypeDesc::Struct(structName);
+
+    if (!expect(TokenType::LParen, "Expected '(' after struct literal type"))
+        return nullptr;
+
+    std::vector<std::unique_ptr<ExprNode>> args;
+    if (!match(TokenType::RParen))
+    {
+        while (true)
+        {
+            std::unique_ptr<ExprNode> arg = parseExpr();
+            if (!arg)
+                return nullptr;
+            args.push_back(std::move(arg));
+            if (match(TokenType::RParen))
+                break;
+            if (!expect(TokenType::StmtSep, "Expected 'ᛵ' between struct literal arguments"))
+                return nullptr;
+        }
+    }
+
+    return std::make_unique<StructLiteralNode>(std::move(literalType), std::move(args));
 }
 
 bool SyntaxParser::atEnd() const
@@ -632,6 +960,99 @@ bool SyntaxParser::expect(TokenType type, const std::string& message)
 
     addError(message);
     return false;
+}
+
+bool SyntaxParser::canStartType(const Token* token) const
+{
+    if (!token)
+        return false;
+    switch (token->type)
+    {
+    case TokenType::I32:
+    case TokenType::I64:
+    case TokenType::Bool:
+    case TokenType::String:
+    case TokenType::TemplateType:
+    case TokenType::Identifier:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool SyntaxParser::canStartExprStatement(const Token* token) const
+{
+    if (!token)
+        return false;
+    switch (token->type)
+    {
+    case TokenType::Identifier:
+    case TokenType::Number:
+    case TokenType::True:
+    case TokenType::False:
+    case TokenType::StringLiteral:
+    case TokenType::Read:
+    case TokenType::Write:
+    case TokenType::LParen:
+    case TokenType::Sub:
+    case TokenType::Not:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool SyntaxParser::identifierStartsAssignment() const
+{
+    const Token* first = peek();
+    if (!first || first->type != TokenType::Identifier)
+        return false;
+
+    size_t offset = 1;
+    while (true)
+    {
+        const Token* look = peek(offset);
+        if (!look)
+            return false;
+
+        if (look->type == TokenType::Newline)
+        {
+            ++offset;
+            continue;
+        }
+
+        if (look->type == TokenType::Dot)
+        {
+            const Token* afterDot = peek(offset + 1);
+            if (!afterDot || afterDot->type != TokenType::Identifier)
+                return false;
+            offset += 2;
+            continue;
+        }
+
+        switch (look->type)
+        {
+        case TokenType::Assign:
+        case TokenType::AddAssign:
+        case TokenType::SubAssign:
+        case TokenType::MulAssign:
+        case TokenType::DivAssign:
+            return true;
+        default:
+            return false;
+        }
+    }
+}
+
+bool SyntaxParser::isStructLiteralAhead() const
+{
+    const Token* token = peek();
+    if (!token || token->type != TokenType::Identifier)
+        return false;
+    if (!_knownStructs.count(token->lexeme))
+        return false;
+    const Token* next = peek(1);
+    return next && next->type == TokenType::LParen;
 }
 
 void SyntaxParser::skipNewlines()

@@ -23,10 +23,13 @@ enum class TokenType
     I32, // 'ᛰ'
     I64, // 'ᛯ'
     Bool, // 'ᛨ'
+    String, // 'ꑭ'
+    TemplateType, // 'ᛸ'
 
     // Literals
     True, // 'ᛉ'
     False, // 'ᛣ'
+    StringLiteral,
 
     // Operators
     Assign, // '᛬'
@@ -41,6 +44,8 @@ enum class TokenType
     // Grouping
     LParen, // 'ᚮ'
     RParen, // 'ᚭ'
+    Dot, // 'ᚽ'
+    Quote, // 'ᛌ'
 
     // Logical ops
     And, // 'ᛤ'
@@ -60,12 +65,6 @@ enum class TokenType
     // I/O
     Read, // 'ᚱ'
     Write, // 'ᚹ'
-
-    // Checked ops
-    CheckedAdd, // 'ꑭ᛭'
-    CheckedSub, // 'ꑭᛧ'
-    CheckedMul, // 'ꑭ᛫'
-    CheckedDiv, // 'ꑭᛇ'
 };
 
 struct Token

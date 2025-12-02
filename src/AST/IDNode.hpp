@@ -1,7 +1,6 @@
 #pragma once
 
-#include <string>
-
+#include "ASTVisitor.hpp"
 #include "FactorNode.hpp"
 #include "TypeDesc.hpp"
 

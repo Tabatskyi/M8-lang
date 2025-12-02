@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FactorNode.hpp"
+#include "ASTVisitor.hpp"
 
 class BoolLiteralNode : public FactorNode
 {

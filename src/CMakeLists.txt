@@ -6,6 +6,8 @@
 add_executable (M8-lang 
     "Compiler/M8-lang.cpp" 
     "Compiler/M8-lang.hpp" 
+    "Compiler/Optimizer.cpp"
+    "Compiler/Optimizer.hpp"
     "SyntaxParser/SyntaxParser.hpp" 
     "SyntaxParser/SyntaxParser.cpp" 
     "General/Token.hpp" 
@@ -18,11 +20,13 @@ add_executable (M8-lang
     "AST/ASTNode.cpp"
     "AST/AssignFieldNode.cpp"
     "AST/AssignNode.cpp"
+    "AST/ASTCloner.cpp"
     "AST/BinaryOpNode.cpp"
     "AST/BlockNode.cpp"
     "AST/BoolLiteralNode.cpp"
     "AST/DeclNode.cpp"
     "AST/ExprNode.cpp"
+    "AST/ExprStmtNode.cpp"
     "AST/FactorNode.cpp"
     "AST/FieldAccessNode.cpp"
     "AST/FunctionCallNode.cpp"
@@ -33,8 +37,10 @@ add_executable (M8-lang
     "AST/NumberNode.cpp"
     "AST/ProgramNode.cpp"
     "AST/ReturnNode.cpp"
+    "AST/StringLiteralNode.cpp"
     "AST/StmtNode.cpp"
     "AST/StructDeclNode.cpp"
+    "AST/StructLiteralNode.cpp"
     "AST/UnaryOpNode.cpp"
 )
 

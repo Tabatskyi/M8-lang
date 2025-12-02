@@ -1,9 +1,5 @@
 #include "IDNode.hpp"
 
-#include <utility>
-
-#include "ASTVisitor.hpp"
-
 IDNode::IDNode(std::string name)
     : _name(std::move(name)) {}
 

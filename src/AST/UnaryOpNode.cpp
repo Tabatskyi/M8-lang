@@ -1,11 +1,7 @@
 #include "UnaryOpNode.hpp"
 
-#include "ASTVisitor.hpp"
-
 UnaryOpNode::UnaryOpNode(Operator op, std::unique_ptr<ExprNode> operand)
-    : _op(op), _operand(std::move(operand))
-{
-}
+    : _op(op), _operand(std::move(operand)) {}
 
 UnaryOpNode::Operator UnaryOpNode::op() const
 {

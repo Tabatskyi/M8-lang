@@ -27,8 +27,8 @@ include(CTest)
 if (BUILD_TESTING)
   enable_testing()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  find_program(LLVM_LLC_EXECUTABLE NAMES llc)
-  find_program(LLVM_CLANG_EXECUTABLE NAMES clang)
+  find_program(LLVM_LLC_EXECUTABLE NAMES llc, llc-20)
+  find_program(LLVM_CLANG_EXECUTABLE NAMES clang, clang-20)
 
   # Directory to write compiler outputs during tests
   set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test_outputs")

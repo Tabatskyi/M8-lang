@@ -16,3 +16,5 @@
 #include "../Semantics/Semantics.hpp"
 #include "../CodeGen/CodeGen.hpp"
 #include "../Lexer/Lexer.hpp"
+#include "../AST/ProgramNode.hpp"
+#include "Optimizer.hpp"

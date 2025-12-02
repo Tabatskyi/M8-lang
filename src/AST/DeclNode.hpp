@@ -18,6 +18,7 @@ public:
 	bool isMutable() const;
 	bool hasInitializer() const;
 	const std::vector<std::unique_ptr<ExprNode>>& initializers() const;
+	std::vector<std::unique_ptr<ExprNode>>& initializers();
 	SymbolID symbolId() const;
 	void setSymbolId(SymbolID id) const;
 

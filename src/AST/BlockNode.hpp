@@ -1,8 +1,6 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-
+#include "ASTVisitor.hpp"
 #include "StmtNode.hpp"
 
 class BlockNode : public ASTNode
@@ -13,6 +11,7 @@ public:
 	BlockNode(StmtList statements, size_t scopeId);
 
 	const StmtList& statements() const;
+	StmtList& statements();
 	size_t scopeId() const;
 
 	void accept(ASTVisitor& visitor) const override;

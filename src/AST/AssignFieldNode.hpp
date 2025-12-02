@@ -1,10 +1,9 @@
 #pragma once
 
-#include <memory>
-
 #include "ExprNode.hpp"
 #include "FieldAccessNode.hpp"
 #include "StmtNode.hpp"
+#include "ASTVisitor.hpp"
 
 class AssignFieldNode : public StmtNode
 {
@@ -13,6 +12,10 @@ public:
 
 	const FieldAccessNode* target() const;
 	const ExprNode* value() const;
+	FieldAccessNode* target();
+	void setTarget(std::unique_ptr<FieldAccessNode> target);
+	ExprNode* value();
+	void setValue(std::unique_ptr<ExprNode> value);
 
 	void accept(ASTVisitor& visitor) const override;
 
