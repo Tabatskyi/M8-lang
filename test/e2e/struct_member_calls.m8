@@ -1,0 +1,15 @@
+ᛋPair᛬left᛬ᛰᛵright᛬ᛰ
+ᛵ
+    ᛃflip᛬ᚮᚭ᛬Pair᛬
+        ᚷPairᚮ_selfᚽrightᛵ_selfᚽleftᚭ
+    ᛵ
+    ᛃdelta᛬ᚮother᛬Pairᚭ᛬ᛰ᛬
+        ᚷ_selfᚽleft᛭otherᚽleft
+ᛵ
+ᚡinitial᛬Pair᛬Pairᚮ5ᛵ8ᚭ
+ᛵ
+ᚡflipped᛬Pair᛬initialᚽflipᚮᚭ
+ᛵ
+ᚠmain᛬ᚮᚭ᛬ᛰ᛬
+    ᚹᚮflippedᚽdeltaᚮinitialᚭᚭ
+ᛵ

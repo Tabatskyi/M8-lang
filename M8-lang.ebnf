@@ -1,5 +1,14 @@
-program        = stmt , { "ᛵ" , stmt } ;
+program        = { top_level , "ᛵ" } , [ top_level ] ;
 
+(* Top-level constructs: variable/constant declarations, function and struct declarations, or a statement *)
+top_level      = var_decl
+				| const_decl
+				| func_decl
+				| struct_decl
+				| stmt
+				;
+
+(* Statements inside function/struct bodies or at top-level *)
 stmt           = var_decl
 				| const_decl
 				| assign_stmt
@@ -10,14 +19,41 @@ stmt           = var_decl
 
 expr_stmt      = expr ;
 
-(* Declarations: ᚡname᛬expr and ᛍname᛬expr  *)
-var_decl       = ( "ᚡ" )  , ident , "᛬" , expr ;
-const_decl     = ( "ᛍ" ) , ident , "᛬" , expr ;
+(* Declarations now allow optional type annotations and struct literals. *)
+var_decl       = "ᚡ" , ident , "᛬" , decl_initializer ;
+const_decl     = "ᛍ" , ident , "᛬" , decl_initializer ;
+
+decl_initializer = struct_literal
+			 | [ type , "᛬" ] , expr
+			 ;
 
 (* Return statement: optionally carries a value *)
 return_stmt    = ( "ᚷ" ) , [ expr ] ;
 
-type           = "ᛰ" | "ᛯ" | "ᛨ" ;
+(* Types: primitive and user-defined struct types *)
+type           = "ᛰ" | "ᛯ" | "ᛨ" | "ꑭ" | ident ;
+
+(* Function declarations *
+	- Global function:       ᚠname᛬( args )᛬retType᛬body
+	- Method inside struct:  ᛃname᛬( args )᛬retType᛬body
+	- Void return uses builtin bool type ᛨ with special semantics or a dedicated type name.
+*)
+func_decl      = ( "ᚠ" | "ᛃ" ) , ident , "᛬" , "ᚮ" , [ param_list ] , "ᚭ" , "᛬" , type , "᛬" , block ;
+
+param_list     = param , { "ᛵ" , param } ;
+param          = ident , "᛬" , type ;
+
+(* Struct declarations with data fields and member functions *
+	ᛋName᛬[fieldDecls]ᛵ[methodDecls]
+*)
+struct_decl    = "ᛋ" , ident , "᛬" , struct_body ;
+
+struct_body    = [ field_decl_list ] , [ "ᛵ" , method_decl_list ] ;
+
+field_decl_list   = field_decl , { "ᛵ" , field_decl } ;
+field_decl        = ident , "᛬" , type ;
+
+method_decl_list  = func_decl , { "ᛵ" , func_decl } ;
 
 (* If-Else; ᛜ separates condition from consequent statement. ᛜ is optional when no consequent statement is present. *)
 if_stmt        = ( "ᛗ" ) , bool_expr , [ "ᛜ" , stmt ] , [ ( "ᛎ" ) , stmt ] ;
@@ -29,7 +65,13 @@ assignment_op  = "᛬" | "᛭᛬" | "ᛧ᛬" | "᛫᛬" | "ᛇ᛬"
 assign_stmt    = ident , assignment_op , expr ;
 
 (* Expressions and precedence *)
-expr           = equality ;
+expr           = logical_or ;
+
+logical_or     = logical_xor , { "ᚢ" , logical_xor } ;
+
+logical_xor    = logical_and , { "ᛡ" , logical_and } ;
+
+logical_and    = equality , { "ᛤ" , equality } ;
 
 equality       = relation , { ( "᛬᛬" | "ᛅ᛬" ) , relation } ;
 
@@ -38,18 +80,32 @@ relation       = addition , { ( "ᚲ" | "ᚲ᛬" ) , addition } ;
 addition       = multiplication , { add_op , multiplication } ;
 
 add_op         = "᛭" | "ᛧ" 
-				| "ꑭ᛭" | "ꑭᛧ" 
 				;
 
 multiplication = unary , { mul_op , unary } ;
 
 mul_op         = "᛫" | "ᛇ" 
-				| "ꑭ᛫" | "ꑭᛇ" 
 				;
 
 unary          = [ ( "ᛧ" | "ᛅ" ) ] , primary ;
 
-primary        = int_lit | bool_lit | ident | "ᚮ" , expr , "ᚭ" ;
+primary        = int_lit
+			 | bool_lit
+			 | string_lit
+			 | builtin_func_call
+			 | struct_literal
+			 | ident
+			 | "ᚮ" , expr , "ᚭ"
+			 ;
+
+struct_literal = type , "ᚮ" , [ struct_arg_list ] , "ᚭ" ;
+struct_arg_list = expr , { "ᛵ" , expr } ;
+
+(* Builtin I/O functions *
+	- ᚱᚮᚭ : read input. The return type is inferred from assignment context (i32, i64, bool, or string).
+	- ᚹᚮexprᚭ : print/println-like output for i32/i64/bool/string expressions, always appending a newline.
+*)
+builtin_func_call = ( "ᚱ" | "ᚹ" ) , "ᚮ" , [ expr ] , "ᚭ" ;
 
 (* Boolean expressions reuse expr; semantic typing will enforce bool *)
 bool_expr      = expr ;
@@ -61,6 +117,11 @@ int_suffix     = "ᛰ" | "ᛯ" ;
 dec_lit        = digit , { digit } ;
 
 bool_lit       = "ᛉ" | "ᛣ" ;
+
+string_lit     = "ᛌ" , { string_char } , "ᛌ" ;
+string_char    = escape | ( printable_char - "ᛌ" - "\\" - "\n" - "\r" ) ;
+escape         = "\\" , ( "n" | "t" | "r" | "\\" | "0" | "ᛌ" ) ;
+printable_char = ? any ASCII graphic or UTF-8 rune except line breaks ? ;
 
 (* Identifiers *)
 ident          = ident_start , { ident_part } ;
@@ -75,6 +136,9 @@ letter         = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K"
 				;
 
 digit          = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
+lbrace         = "ᚮ" ;
+rbrace         = "ᚭ" ;
 
 (*
 	Notes:
